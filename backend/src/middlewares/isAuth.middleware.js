@@ -1,4 +1,5 @@
 import jwt from "jsonwebtoken";
+import { User } from "../models/user.model.js";
 
 export const isAuth = async (req, res, next) => {
   try {
@@ -10,7 +11,19 @@ export const isAuth = async (req, res, next) => {
     if (!decode) {
       return res.status(401).json({ message: "User unauthorized" });
     }
-    req.user = decode;
+
+    // Ensure the user still exists (e.g., deleted in DB)
+    const user = await User.findById(decode._id).select("_id");
+    if (!user) {
+      res.clearCookie("token", {
+        httpOnly: true,
+        secure: true,
+        sameSite: "strict",
+      });
+      return res.status(401).json({ message: "User not found", success: false });
+    }
+
+    req.user = { _id: user._id };
     next();
   } catch (error) {
     console.log("Error in isAuth middleware", error);

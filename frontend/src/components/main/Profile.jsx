@@ -1,24 +1,82 @@
 import useGetUserProfile from '@/hooks/useGetUserProfile'
 import React, { useState } from 'react'
-import { useSelector } from 'react-redux'
-import { Link, useParams } from 'react-router-dom'
+import { useSelector, useDispatch } from 'react-redux'
+import { Link, useParams, useNavigate } from 'react-router-dom'
 import { Avatar, AvatarImage } from '../ui/avatar'
 import { AvatarFallback } from '@radix-ui/react-avatar'
 import { Button } from '../ui/button'
 import { Badge } from '../ui/badge'
 import { AtSign, Heart, MessageCircle } from 'lucide-react'
+import instance from '@/lib/axios.instance'
+import { toast } from 'sonner'
+import { setAuthUser, setUserProfile } from '@/redux/authSlice'
 
 
 const Profile = () => {
   const params = useParams()
   const userId = params.id
+  const navigate = useNavigate()
+  const dispatch = useDispatch()
   useGetUserProfile(userId)
   const [activeTab, setActiveTab] = useState('posts')
+  const [isFollowing, setIsFollowing] = useState(false)
+  const [loading, setLoading] = useState(false)
 
-  const { userProfile ,user} = useSelector(store => store.auth)
-  console.log(userProfile)
+  const { userProfile, user } = useSelector(store => store.auth)
   const isLoggedInUserProfile = user?._id === userProfile?._id
-  const isFollowing = true
+
+  // Check if user is following this profile
+  React.useEffect(() => {
+    if (user && userProfile && !isLoggedInUserProfile) {
+      const following = user.following?.some(
+        (id) => id?.toString() === userProfile._id?.toString()
+      ) || false
+      setIsFollowing(following)
+    }
+  }, [user, userProfile, isLoggedInUserProfile])
+
+  const handleFollowUnfollow = async () => {
+    if (!user || !userProfile || isLoggedInUserProfile) return
+    
+    setLoading(true)
+    try {
+      const res = await instance.post(`/user/followorunfollow/${userProfile._id}`)
+      if (res.data.success) {
+        toast.success(res.data.message)
+        
+        // Update following status
+        setIsFollowing(!isFollowing)
+        
+        // Update user's following list in Redux
+        if (user.following) {
+          const updatedFollowing = isFollowing
+            ? user.following.filter(id => id?.toString() !== userProfile._id?.toString())
+            : [...user.following, userProfile._id]
+          
+          dispatch(setAuthUser({ ...user, following: updatedFollowing }))
+        }
+        
+        // Update userProfile's followers count
+        if (userProfile.followers) {
+          const updatedFollowers = isFollowing
+            ? userProfile.followers.filter(id => id?.toString() !== user._id?.toString())
+            : [...userProfile.followers, user._id]
+          
+          dispatch(setUserProfile({ ...userProfile, followers: updatedFollowers }))
+        }
+      }
+    } catch (error) {
+      console.error('Error in follow/unfollow:', error)
+      toast.error(error?.response?.data?.message || 'Failed to follow/unfollow')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleMessage = () => {
+    navigate('/chat')
+    // You can also dispatch setSelectedUser here if needed
+  }
 
   const handleTabchange = (tab) => {
     console.log(activeTab)
@@ -42,19 +100,42 @@ const Profile = () => {
 
               <span>{userProfile?.username} </span>
               {
-                isLoggedInUserProfile ? (<div className='flex gap-2'>
-                 <Link to={'/profile/edit'}><Button className={'hover:bg-gray-200 h-8'} variant={'secondary'}>Edit Profile</Button></Link> 
-                  <Button className={'hover:bg-gray-200 h-8'} variant={'secondary'}>View archive</Button>
-                  <Button className={'hover:bg-gray-200 h-8'} variant={'secondary'}>Ad tools</Button>
-                </div>) : (
-                  isFollowing ?
-                    (<div className='flex gap-2'>
-                      <Button variant={'secondary'} className={' h-8'} >UnFollow</Button>
-                      <Button className={'bg-[#0095F6] hover:bg-[#0070ba] h-8'} >Message</Button>
-                    </div>)
-                    : (
-                      <Button className={'bg-[#0095F6] hover:bg-[#0070ba]'} >Follow</Button>
-                    ))
+                isLoggedInUserProfile ? (
+                  <div className='flex gap-2'>
+                    <Link to={'/profile/edit'}>
+                      <Button className={'hover:bg-gray-200 h-8'} variant={'secondary'}>Edit Profile</Button>
+                    </Link> 
+                    <Button className={'hover:bg-gray-200 h-8'} variant={'secondary'}>View archive</Button>
+                    <Button className={'hover:bg-gray-200 h-8'} variant={'secondary'}>Ad tools</Button>
+                  </div>
+                ) : (
+                  isFollowing ? (
+                    <div className='flex gap-2'>
+                      <Button 
+                        variant={'secondary'} 
+                        className={'h-8'} 
+                        onClick={handleFollowUnfollow}
+                        disabled={loading}
+                      >
+                        {loading ? 'Loading...' : 'Unfollow'}
+                      </Button>
+                      <Button 
+                        className={'bg-[#0095F6] hover:bg-[#0070ba] h-8'} 
+                        onClick={handleMessage}
+                      >
+                        Message
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button 
+                      className={'bg-[#0095F6] hover:bg-[#0070ba] h-8'} 
+                      onClick={handleFollowUnfollow}
+                      disabled={loading}
+                    >
+                      {loading ? 'Loading...' : 'Follow'}
+                    </Button>
+                  )
+                )
               }
 
 

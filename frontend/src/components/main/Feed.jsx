@@ -3,7 +3,7 @@ import Posts from "./Posts";
 
 const Feed = () => {
   return (
-    <section className=" h-screen w-full ">
+    <section className="w-full overflow-y-auto">
       <Posts />
     </section>
   );

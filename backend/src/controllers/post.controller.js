@@ -2,6 +2,7 @@ import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import { Post } from "../models/post.model.js";
 import { User } from "../models/user.model.js";
 import { Comment } from "../models/comment.model.js";
+import { getIO } from "../socket/socket.js";
 import sharp from "sharp";
 const addNewPost = async (req, res) => {
   try {
@@ -55,7 +56,11 @@ const getAllPost = async (req, res) => {
           select: "username profilePicture",
         },
       });
-    return res.status(200).json({ posts, success: true });
+    
+    // Filter out posts with deleted authors
+    const validPosts = posts.filter(post => post.author !== null && post.author !== undefined);
+    
+    return res.status(200).json({ posts: validPosts, success: true });
   } catch (error) {
     console.log("Error in get all post ", error);
     return res.status(500).json({
@@ -77,7 +82,10 @@ const getUserPost = async (req, res) => {
         populate: { path: "author", select: "username profilePicture" },
       });
 
-    return res.status(200).json({ posts, success: true });
+    // Filter out posts with deleted authors (shouldn't happen for user's own posts, but safety check)
+    const validPosts = posts.filter(post => post.author !== null && post.author !== undefined);
+
+    return res.status(200).json({ posts: validPosts, success: true });
   } catch (error) {
     console.log("Error in get user post ", error);
     return res.status(500).json({
@@ -91,14 +99,57 @@ const likePost = async (req, res) => {
   try {
     const userId = req.user._id;
     const postId = req.params.id;
-    const post = await Post.findById(postId);
+    const post = await Post.findById(postId).populate("author");
     if (!post) {
       return res
         .status(404)
         .json({ message: "post not found", success: false });
     }
+    
+    const wasAlreadyLiked = post.likes.includes(userId);
     await post.updateOne({ $addToSet: { likes: userId } });
     await post.save();
+
+    // Send notification if post author is not the one liking
+    if (!wasAlreadyLiked && post.author._id.toString() !== userId.toString()) {
+      try {
+        const io = getIO();
+        const sender = await User.findById(userId).select("username profilePicture");
+        const payload = {
+          senderId: userId.toString(),
+          receiverId: post.author._id.toString(),
+          type: "like",
+          message: `${sender.username} liked your post`,
+          postId: postId.toString(),
+          sender: {
+            _id: sender._id,
+            username: sender.username,
+            profilePicture: sender.profilePicture,
+          },
+          createdAt: new Date(),
+        };
+
+        io.to(post.author._id.toString()).emit("newNotification", payload);
+
+        // #region agent log
+        fetch("http://127.0.0.1:7242/ingest/2298cefe-44eb-4932-95fe-e57982e88dd6", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sessionId: "debug-session",
+            runId: "pre-fix",
+            hypothesisId: "H3",
+            location: "backend/src/controllers/post.controller.js:likePost",
+            message: "Emitted like notification",
+            data: { postId: postId.toString(), senderId: userId.toString(), receiverId: post.author._id.toString() },
+            timestamp: Date.now(),
+          }),
+        }).catch(() => {});
+        // #endregion
+      } catch (socketError) {
+        console.log("Socket.IO error in likePost:", socketError);
+      }
+    }
 
     return res.status(200).json({ message: "Post liked ", success: true });
   } catch (error) {
@@ -143,7 +194,7 @@ const addComment = async (req, res) => {
         .json({ message: "text is required", success: false });
     }
 
-    const post = await Post.findById(postId);
+    const post = await Post.findById(postId).populate("author");
     const comment = await Comment.create({
       text,
       author: userId,
@@ -157,6 +208,28 @@ const addComment = async (req, res) => {
 
     post.comments.push(comment._id);
     await post.save();
+
+    // Send notification if post author is not the one commenting
+    if (post.author._id.toString() !== userId.toString()) {
+      try {
+        const io = getIO();
+        io.to(post.author._id.toString()).emit("newNotification", {
+          senderId: userId.toString(),
+          receiverId: post.author._id.toString(),
+          type: "comment",
+          message: `${comment.author.username} commented on your post`,
+          postId: postId.toString(),
+          sender: {
+            _id: comment.author._id,
+            username: comment.author.username,
+            profilePicture: comment.author.profilePicture,
+          },
+          createdAt: new Date(),
+        });
+      } catch (socketError) {
+        console.log("Socket.IO error in addComment:", socketError);
+      }
+    }
 
     return res
       .status(201)

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { Bookmark, MessageCircle, MoreHorizontal, Send } from "lucide-react";
@@ -9,16 +9,34 @@ import { useDispatch, useSelector } from "react-redux";
 import { toast } from "sonner";
 import instance from "@/lib/axios.instance";
 import { setPosts, setSlectedPost } from "@/redux/postSlice";
+import { setAuthUser } from "@/redux/authSlice";
 
 const Post = ({ post }) => {
   const [text, setText] = useState("");
   const [open, setOpen] = useState(false)
-  const [postLike, setPostLike] = useState(post?.likes?.length)
-  const [comment, setComment] = useState(post?.comments)
+  const [postLike, setPostLike] = useState(post?.likes?.length || 0)
+  const [comment, setComment] = useState(post?.comments || [])
   const { user } = useSelector(store => store.auth)
   const { posts } = useSelector(store => store.posts)
   const dispatch = useDispatch()
-  const [liked, setLiked] = useState(post?.likes.includes(user?._id) || false)
+  const [liked, setLiked] = useState(post?.likes?.includes(user?._id) || false)
+  const [isFollowingAuthor, setIsFollowingAuthor] = useState(false)
+  const [followLoading, setFollowLoading] = useState(false)
+
+  // Check if user is following the post author
+  useEffect(() => {
+    if (user && post?.author) {
+      const following = user.following?.some(
+        (id) => id?.toString() === post.author._id?.toString()
+      ) || false
+      setIsFollowingAuthor(following)
+    }
+  }, [user, post?.author])
+  
+  // Don't render if post or author is missing
+  if (!post || !post.author) {
+    return null;
+  }
   const changeEventHandler = (e) => {
     const inputText = e.target.value;
     if (inputText.trim()) {
@@ -86,26 +104,74 @@ const Post = ({ post }) => {
     }
 
   }
+
+  const handleFollowUnfollow = async () => {
+    if (!post?.author || !user || user._id === post.author._id || followLoading) return
+
+    setFollowLoading(true)
+    try {
+      const res = await instance.post(`/user/followorunfollow/${post.author._id}`)
+      if (res.data.success) {
+        toast.success(res.data.message)
+        
+        // Update following status
+        setIsFollowingAuthor(!isFollowingAuthor)
+        
+        // Update user's following list in Redux
+        if (user.following) {
+          const updatedFollowing = isFollowingAuthor
+            ? user.following.filter(id => id?.toString() !== post.author._id?.toString())
+            : [...user.following, post.author._id]
+          
+          dispatch(setAuthUser({ ...user, following: updatedFollowing }))
+        }
+      }
+    } catch (error) {
+      console.error('Error in follow/unfollow:', error)
+      toast.error(error?.response?.data?.message || 'Failed to follow/unfollow')
+    } finally {
+      setFollowLoading(false)
+    }
+  }
   return (
-    <div className="my-8 w-full max-w-sm mx-auto">
+    <div className="my-8 w-full max-w-sm md:max-w-lg mx-auto px-2 md:px-0">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Avatar>
             <AvatarImage className={'object-cover'} src={post?.author?.profilePicture} />
-            <AvatarFallback><img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTwRKRDbqqn3ily8fQJyYjGKww0I17Jld-ZGA&s" alt="CN" /></AvatarFallback>
+            <AvatarFallback>
+              {post?.author?.username?.charAt(0)?.toUpperCase()}
+            </AvatarFallback>
           </Avatar>
-          <h1>{post?.author?.username}</h1>
+          <h1 className="font-medium">{post?.author?.username}</h1>
         </div>
         <Dialog>
           <DialogTrigger>
             <MoreHorizontal className="cursor-pointer" />
           </DialogTrigger>
           <DialogContent className={"px-0 py-4 flex items-center flex-col"}>
-            <Button variant={'ghost'} className={'cursor-pointer w-fit text-[#ED4956] font-bold'}>Unfollow</Button>
+            {user && user._id !== post?.author?._id && (
+              <Button 
+                variant={'ghost'} 
+                className={`cursor-pointer w-fit font-bold ${isFollowingAuthor ? 'text-[#ED4956]' : ''}`}
+                onClick={handleFollowUnfollow}
+                disabled={followLoading}
+              >
+                {followLoading ? 'Loading...' : (isFollowingAuthor ? 'Unfollow' : 'Follow')}
+              </Button>
+            )}
             <Button variant={'ghost'} className={'cursor-pointer w-fit font-bold'}>Add to Favorites</Button>
 
             {
-              user && user?._id === post?.author._id && <Button onClick={deletePostHandler} variant={'ghost'} className={'cursor-pointer w-fit  font-bold'}>Delete</Button>
+              user && user?._id === post?.author?._id && (
+                <Button 
+                  onClick={deletePostHandler} 
+                  variant={'ghost'} 
+                  className={'cursor-pointer w-fit font-bold text-[#ED4956]'}
+                >
+                  Delete
+                </Button>
+              )
             }
 
           </DialogContent>
@@ -115,7 +181,7 @@ const Post = ({ post }) => {
         <img
           src={post?.image}
           alt="post-img"
-          className="w-full mt-2 h-[400px] object-cover"
+          className="w-full mt-2 h-[300px] md:h-[400px] object-cover rounded-lg"
         />
       </div>
       <div>
@@ -138,7 +204,7 @@ const Post = ({ post }) => {
       </p>
 
       {
-        comment.length > 0 && (
+        comment && comment.length > 0 && (
           <span className="cursor-pointer text-sm text-gray-400" onClick={() => { dispatch(setSlectedPost(post)); setOpen(true) }}>View all {comment.length} comments</span>
         )
       }

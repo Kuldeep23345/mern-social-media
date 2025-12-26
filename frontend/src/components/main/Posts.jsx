@@ -4,11 +4,12 @@ import { useSelector } from 'react-redux'
 
 const Posts = () => {
   const { posts } = useSelector(store => store.posts)
-  // console.log(posts)
+  // Filter out posts with missing authors (deleted users)
+  const validPosts = posts?.filter(post => post && post.author) || []
+  
   return (
     <div >
-
-      {posts.map((post) => (
+      {validPosts.map((post) => (
         <Post key={post._id} post={post} />
       ))}
     </div>

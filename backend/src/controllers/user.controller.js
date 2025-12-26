@@ -1,6 +1,7 @@
 import { User } from "../models/user.model.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import { Post } from "../models/post.model.js";
+import { getIO } from "../socket/socket.js";
 const registerUser = async (req, res) => {
   try {
     const { username, email, password } = req.body;
@@ -201,7 +202,10 @@ const followOrUnfollow = async (req, res) => {
 
     //  now i am checking that we have to follow and unfollow
 
-    const isFollowing = user.following.includes(jiskoFollowKaronga);
+    const isFollowing = user.following.some(
+      (id) => id.toString() === jiskoFollowKaronga.toString()
+    );
+    
     if (isFollowing) {
       await Promise.all([
         User.updateOne(
@@ -213,9 +217,18 @@ const followOrUnfollow = async (req, res) => {
           { $pull: { followers: followKarneWala } }
         ),
       ]);
+      
+      // Fetch updated user data
+      const updatedUser = await User.findById(followKarneWala).select("-password");
+      
       return res
         .status(200)
-        .json({ message: "Unfollowed successfully", success: true });
+        .json({ 
+          message: "Unfollowed successfully", 
+          success: true,
+          user: updatedUser,
+          action: "unfollow"
+        });
     } else {
       await Promise.all([
         User.updateOne(
@@ -227,9 +240,38 @@ const followOrUnfollow = async (req, res) => {
           { $push: { followers: followKarneWala } }
         ),
       ]);
+      
+      // Fetch updated user data
+      const updatedUser = await User.findById(followKarneWala).select("-password");
+      
+      // Send notification
+      try {
+        const io = getIO();
+        const follower = await User.findById(followKarneWala).select("username profilePicture");
+        io.to(jiskoFollowKaronga.toString()).emit("newNotification", {
+          senderId: followKarneWala.toString(),
+          receiverId: jiskoFollowKaronga.toString(),
+          type: "follow",
+          message: `${follower.username} started following you`,
+          sender: {
+            _id: follower._id,
+            username: follower.username,
+            profilePicture: follower.profilePicture,
+          },
+          createdAt: new Date(),
+        });
+      } catch (socketError) {
+        console.log("Socket.IO error in followOrUnfollow:", socketError);
+      }
+      
       return res
         .status(200)
-        .json({ message: "followed successfully", success: true });
+        .json({ 
+          message: "followed successfully", 
+          success: true,
+          user: updatedUser,
+          action: "follow"
+        });
     }
   } catch (error) {
     console.log("Error in followOrUnfollow ", error);
