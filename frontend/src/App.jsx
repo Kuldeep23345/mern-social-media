@@ -6,6 +6,7 @@ import Profile from "./components/main/Profile";
 import Home from "./pages/home/Home";
 import EditProfile from "./components/main/EditProfile";
 import ChatPage from "./components/main/ChatPage";
+import FollowersPage from "./components/main/FollowersPage";
 
 const App = () => {
   return (
@@ -14,6 +15,8 @@ const App = () => {
         <Route path="/" element={<Layout />}>
           <Route path="/" element={<Home />} />
           <Route path="/profile/:id" element={<Profile />} />
+          <Route path="/profile/:id/followers" element={<FollowersPage />} />
+          <Route path="/profile/:id/following" element={<FollowersPage />} />
           <Route path="/profile/edit" element={<EditProfile />} />
           <Route path="/chat" element={<ChatPage />} />
         </Route>

@@ -322,6 +322,62 @@ const followOrUnfollow = async (req, res) => {
   }
 };
 
+const getFollowers = async (req, res) => {
+  try {
+    const userId = req.params.id;
+    const user = await User.findById(userId).populate({
+      path: "followers",
+      select: "name username profilePicture bio",
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        message: "User not found",
+        success: false,
+      });
+    }
+
+    return res.status(200).json({
+      followers: user.followers,
+      success: true,
+    });
+  } catch (error) {
+    console.log("Error in getFollowers", error);
+    return res.status(500).json({
+      message: "Internal server error",
+      success: false,
+    });
+  }
+};
+
+const getFollowing = async (req, res) => {
+  try {
+    const userId = req.params.id;
+    const user = await User.findById(userId).populate({
+      path: "following",
+      select: "name username profilePicture bio",
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        message: "User not found",
+        success: false,
+      });
+    }
+
+    return res.status(200).json({
+      following: user.following,
+      success: true,
+    });
+  } catch (error) {
+    console.log("Error in getFollowing", error);
+    return res.status(500).json({
+      message: "Internal server error",
+      success: false,
+    });
+  }
+};
+
 export {
   registerUser,
   loginUser,
@@ -331,4 +387,6 @@ export {
   getSuggestedUsers,
   followOrUnfollow,
   searchUser,
+  getFollowers,
+  getFollowing,
 };

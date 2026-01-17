@@ -175,13 +175,19 @@ const Profile = () => {
                 </span>{" "}
                 posts
               </p>
-              <p>
+              <p
+                onClick={() => navigate(`/profile/${userId}/followers`)}
+                className="cursor-pointer hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+              >
                 <span className="font-semibold">
                   {userProfile?.followers?.length}
                 </span>{" "}
                 followers
               </p>
-              <p>
+              <p
+                onClick={() => navigate(`/profile/${userId}/following`)}
+                className="cursor-pointer hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+              >
                 <span className="font-semibold">
                   {userProfile?.following?.length}
                 </span>{" "}
