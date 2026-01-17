@@ -27,6 +27,8 @@ const EditProfile = () => {
     profilePicture: user?.profilePicture,
     bio: user?.bio,
     gender: user?.gender,
+    username: user?.username,
+    name: user?.name,
   });
   const navigate = useNavigate();
   const dispatch = useDispatch();
@@ -45,6 +47,8 @@ const EditProfile = () => {
     const formdata = new FormData();
     formdata.append("bio", input.bio);
     formdata.append("gender", input.gender);
+    formdata.append("username", input.username);
+    formdata.append("name", input.name);
     if (input.profilePicture) {
       formdata.append("profilePhoto", input.profilePicture);
     }
@@ -53,26 +57,28 @@ const EditProfile = () => {
       const res = await instance.post("/user/profile-edit", formdata, {
         headers: { "Content-Type": "multipart/form-data" },
       });
-      if(res.data.success){
+      if (res.data.success) {
         const updatedUserData = {
-          ...user,bio:res?.data?.user?.bio,
-          profilePicture:res?.data?.user?.profilePicture,
-          gender:res?.data?.user?.gender
-        }
+          ...user,
+          bio: res?.data?.user?.bio,
+          profilePicture: res?.data?.user?.profilePicture,
+          gender: res?.data?.user?.gender,
+          username: res?.data?.user?.username,
+          name: res?.data?.user?.name,
+        };
         dispatch(setAuthUser(updatedUserData));
-        navigate(`/profile/${user?._id}`)
-        toast.success(res?.data?.message)
+        navigate(`/profile/${user?._id}`);
+        toast.success(res?.data?.message);
       }
     } catch (error) {
-      console.log(error);
-      toast.error(error?.response?.data?.message)
-    }finally{
-      setLoading(false)
+      toast.error(error?.response?.data?.message);
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="flex min-w-3xl  mx-auto pl-10">
+    <div className="flex w-full max-w-2xl mx-auto px-4 md:px-10">
       <section className="flex flex-col gap-6 w-full my-8">
         <h1 className="font-bold text-xl"></h1>
         <div className="flex items-center justify-between bg-gray-100 rounded-xl p-4">
@@ -92,13 +98,36 @@ const EditProfile = () => {
               </span>
             </div>
           </div>
-          <input onChange={fileChangeHandler} ref={imageRef} type="file" className="hidden" />
+          <input
+            onChange={fileChangeHandler}
+            ref={imageRef}
+            type="file"
+            className="hidden"
+          />
           <Button
             onClick={() => imageRef?.current.click()}
             className={"bg-[#0095F6] h-8 hover:bg-[#016bb1]"}
           >
             Change photo
           </Button>
+        </div>
+        <div className="bg-gray-100 dark:bg-gray-800 rounded-xl p-4">
+          <h1 className="font-bold text-base mb-2">Username</h1>
+          <input
+            type="text"
+            value={input.username}
+            onChange={(e) => setInput({ ...input, username: e.target.value })}
+            className="w-full bg-transparent outline-none border-b border-gray-300 focus:border-[#0095F6] transition-colors pb-1"
+          />
+        </div>
+        <div className="bg-gray-100 dark:bg-gray-800 rounded-xl p-4">
+          <h1 className="font-bold text-base mb-2">Name</h1>
+          <input
+            type="text"
+            value={input.name}
+            onChange={(e) => setInput({ ...input, name: e.target.value })}
+            className="w-full bg-transparent outline-none border-b border-gray-300 focus:border-[#0095F6] transition-colors pb-1"
+          />
         </div>
         <div>
           <h1 className="font-bold text-base mb-2">Bio</h1>
@@ -137,7 +166,7 @@ const EditProfile = () => {
               onClick={editProfileHandler}
               className={"w-fit bg-[#0095F6] hover:bg-[#016bb1]"}
             >
-              Submi
+              Submit
             </Button>
           )}
         </div>

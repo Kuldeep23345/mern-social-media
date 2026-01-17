@@ -19,22 +19,26 @@ const sendMessage = async (req, res) => {
         participants: [senderId, receiverId],
       });
     }
-    
-    const sender = await User.findById(senderId).select("username profilePicture");
-    
+
+    const sender = await User.findById(senderId).select(
+      "username profilePicture",
+    );
+
     const newMessage = await Message.create({
       senderId,
       receiverId,
       message,
     });
-    
+
     if (newMessage) conversation.messages.push(newMessage._id);
     await Promise.all([conversation.save(), newMessage.save()]);
 
     // Emit Socket.IO event for real-time message
     try {
       const io = getIO();
-      const roomId = [senderId.toString(), receiverId.toString()].sort().join("-");
+      const roomId = [senderId.toString(), receiverId.toString()]
+        .sort()
+        .join("-");
       const payload = {
         senderId: senderId.toString(),
         receiverId: receiverId.toString(),
@@ -51,27 +55,15 @@ const sendMessage = async (req, res) => {
 
       io.to(roomId).emit("newMessage", payload);
 
-      // #region agent log
-      fetch("http://127.0.0.1:7242/ingest/2298cefe-44eb-4932-95fe-e57982e88dd6", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sessionId: "debug-session",
-          runId: "pre-fix",
-          hypothesisId: "H2",
-          location: "backend/src/controllers/message.controller.js:sendMessage",
-          message: "REST sendMessage emitted Socket.IO newMessage",
-          data: { roomId, senderId: senderId.toString(), receiverId: receiverId.toString() },
-          timestamp: Date.now(),
-        }),
-      }).catch(() => {});
       // #endregion
     } catch (socketError) {
       console.log("Socket.IO error:", socketError);
       // Continue even if Socket.IO fails
     }
 
-    return res.status(201).json({ success: true, newMessage, conversationId: conversation._id });
+    return res
+      .status(201)
+      .json({ success: true, newMessage, conversationId: conversation._id });
   } catch (error) {
     console.log("Error in send message", error);
     return res.status(500).json({
@@ -95,18 +87,18 @@ const getMessage = async (req, res) => {
         select: "username profilePicture",
       },
     });
-    
+
     if (!conversation) {
-      return res.status(200).json({ success: true, messages: [], conversationId: null });
+      return res
+        .status(200)
+        .json({ success: true, messages: [], conversationId: null });
     }
-    
-    return res
-      .status(200)
-      .json({ 
-        success: true, 
-        messages: conversation.messages || [],
-        conversationId: conversation._id 
-      });
+
+    return res.status(200).json({
+      success: true,
+      messages: conversation.messages || [],
+      conversationId: conversation._id,
+    });
   } catch (error) {
     console.log("Error in get message", error);
     return res.status(500).json({
@@ -116,4 +108,4 @@ const getMessage = async (req, res) => {
   }
 };
 
-export { sendMessage ,getMessage};
+export { sendMessage, getMessage };

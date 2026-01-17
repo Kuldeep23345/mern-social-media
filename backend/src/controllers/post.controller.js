@@ -47,19 +47,21 @@ const getAllPost = async (req, res) => {
   try {
     const posts = await Post.find()
       .sort({ createdAt: -1 })
-      .populate({ path: "author", select: "username  profilePicture" })
+      .populate({ path: "author", select: "username name profilePicture" })
       .populate({
         path: "comments",
         sort: { createdAt: -1 },
         populate: {
           path: "author",
-          select: "username profilePicture",
+          select: "username name profilePicture",
         },
       });
-    
+
     // Filter out posts with deleted authors
-    const validPosts = posts.filter(post => post.author !== null && post.author !== undefined);
-    
+    const validPosts = posts.filter(
+      (post) => post.author !== null && post.author !== undefined,
+    );
+
     return res.status(200).json({ posts: validPosts, success: true });
   } catch (error) {
     console.log("Error in get all post ", error);
@@ -75,15 +77,17 @@ const getUserPost = async (req, res) => {
     const authorId = req.user._id;
     const posts = await Post.find({ author: authorId })
       .sort({ createdAt: -1 })
-      .populate({ path: "author", select: "username profilePicture" })
+      .populate({ path: "author", select: "username name profilePicture" })
       .populate({
         path: "comments",
         sort: { createdAt: -1 },
-        populate: { path: "author", select: "username profilePicture" },
+        populate: { path: "author", select: "username name profilePicture" },
       });
 
     // Filter out posts with deleted authors (shouldn't happen for user's own posts, but safety check)
-    const validPosts = posts.filter(post => post.author !== null && post.author !== undefined);
+    const validPosts = posts.filter(
+      (post) => post.author !== null && post.author !== undefined,
+    );
 
     return res.status(200).json({ posts: validPosts, success: true });
   } catch (error) {
@@ -105,7 +109,7 @@ const likePost = async (req, res) => {
         .status(404)
         .json({ message: "post not found", success: false });
     }
-    
+
     const wasAlreadyLiked = post.likes.includes(userId);
     await post.updateOne({ $addToSet: { likes: userId } });
     await post.save();
@@ -114,7 +118,9 @@ const likePost = async (req, res) => {
     if (!wasAlreadyLiked && post.author._id.toString() !== userId.toString()) {
       try {
         const io = getIO();
-        const sender = await User.findById(userId).select("username profilePicture");
+        const sender = await User.findById(userId).select(
+          "username name profilePicture",
+        );
         const payload = {
           senderId: userId.toString(),
           receiverId: post.author._id.toString(),
@@ -124,6 +130,7 @@ const likePost = async (req, res) => {
           sender: {
             _id: sender._id,
             username: sender.username,
+            name: sender.name,
             profilePicture: sender.profilePicture,
           },
           createdAt: new Date(),
@@ -131,24 +138,24 @@ const likePost = async (req, res) => {
 
         io.to(post.author._id.toString()).emit("newNotification", payload);
 
-        // #region agent log
-        fetch("http://127.0.0.1:7242/ingest/2298cefe-44eb-4932-95fe-e57982e88dd6", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            sessionId: "debug-session",
-            runId: "pre-fix",
-            hypothesisId: "H3",
-            location: "backend/src/controllers/post.controller.js:likePost",
-            message: "Emitted like notification",
-            data: { postId: postId.toString(), senderId: userId.toString(), receiverId: post.author._id.toString() },
-            timestamp: Date.now(),
-          }),
-        }).catch(() => {});
         // #endregion
       } catch (socketError) {
         console.log("Socket.IO error in likePost:", socketError);
       }
+    }
+
+    // Emit socket event for real-time update
+    try {
+      const io = getIO();
+      io.emit("postUpdate", {
+        postId: postId.toString(),
+        likes: post.likes.includes(userId)
+          ? post.likes
+          : [...post.likes, userId],
+        type: "like",
+      });
+    } catch (socketError) {
+      console.log("Socket.IO error in likePost update:", socketError);
     }
 
     return res.status(200).json({ message: "Post liked ", success: true });
@@ -172,6 +179,18 @@ const dislikePost = async (req, res) => {
     }
     await post.updateOne({ $pull: { likes: userId } });
     await post.save();
+
+    // Emit socket event for real-time update
+    try {
+      const io = getIO();
+      io.emit("postUpdate", {
+        postId: postId.toString(),
+        likes: post.likes.filter((id) => id.toString() !== userId.toString()),
+        type: "dislike",
+      });
+    } catch (socketError) {
+      console.log("Socket.IO error in dislikePost update:", socketError);
+    }
 
     return res.status(200).json({ message: "Post dislike ", success: true });
   } catch (error) {
@@ -203,7 +222,7 @@ const addComment = async (req, res) => {
 
     await comment.populate({
       path: "author",
-      select: "username profilePicture",
+      select: "username name profilePicture",
     });
 
     post.comments.push(comment._id);
@@ -222,6 +241,7 @@ const addComment = async (req, res) => {
           sender: {
             _id: comment.author._id,
             username: comment.author.username,
+            name: comment.author.name,
             profilePicture: comment.author.profilePicture,
           },
           createdAt: new Date(),
@@ -229,6 +249,30 @@ const addComment = async (req, res) => {
       } catch (socketError) {
         console.log("Socket.IO error in addComment:", socketError);
       }
+    }
+
+    // Emit socket event for real-time update
+    try {
+      const io = getIO();
+      // We need to fetch the post again to get all populated comments if we want to sync perfectly
+      // Or just send the new comment and let frontend handle it.
+      // But syncing the whole array is more robust if others are also adding comments.
+      const updatedPost = await Post.findById(postId).populate({
+        path: "comments",
+        sort: { createdAt: -1 },
+        populate: {
+          path: "author",
+          select: "username name profilePicture",
+        },
+      });
+
+      io.emit("postUpdate", {
+        postId: postId.toString(),
+        comments: updatedPost.comments,
+        type: "comment",
+      });
+    } catch (socketError) {
+      console.log("Socket.IO error in addComment update:", socketError);
     }
 
     return res
@@ -248,7 +292,7 @@ const getCommentOfPost = async (req, res) => {
 
     const comments = await Comment.find({ post: postId }).populate({
       path: "author",
-      select: "username profilePicture", // 👈 space-separated, not comma
+      select: "username name profilePicture", // 👈 space-separated, not comma
     });
 
     if (!comments || comments.length === 0) {
@@ -268,7 +312,6 @@ const getCommentOfPost = async (req, res) => {
   }
 };
 
-
 const deletePost = async (req, res) => {
   try {
     const postId = req.params.id;
@@ -281,7 +324,7 @@ const deletePost = async (req, res) => {
         .json({ message: "Post not found", success: false });
     }
 
-    if (post.author.toString() !== authorId) {
+    if (post.author.toString() !== authorId.toString()) {
       return res.status(403).json({ message: "Unauthorized" });
     }
     await Post.findByIdAndDelete(postId);
@@ -341,6 +384,45 @@ const bookmarkPost = async (req, res) => {
   }
 };
 
+const favoritePost = async (req, res) => {
+  try {
+    const postId = req.params.id;
+    const authorId = req.user._id;
+
+    const post = await Post.findById(postId);
+    if (!post) {
+      return res
+        .status(404)
+        .json({ message: "Post not found", success: false });
+    }
+
+    const user = await User.findById(authorId);
+    if (user.favorites.includes(post._id)) {
+      await user.updateOne({ $pull: { favorites: post._id } });
+      await user.save();
+      return res.status(200).json({
+        type: "unfavorited",
+        message: "Post removed from favorites",
+        success: true,
+      });
+    } else {
+      await user.updateOne({ $addToSet: { favorites: post._id } });
+      await user.save();
+      return res.status(200).json({
+        type: "favorited",
+        message: "Post added to favorites",
+        success: true,
+      });
+    }
+  } catch (error) {
+    console.log("Error in favoritePost ", error);
+    return res.status(500).json({
+      message: "Internal server error in favoritePost",
+      success: false,
+    });
+  }
+};
+
 export {
   addNewPost,
   getAllPost,
@@ -351,4 +433,5 @@ export {
   getCommentOfPost,
   deletePost,
   bookmarkPost,
+  favoritePost,
 };

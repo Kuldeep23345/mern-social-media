@@ -7,6 +7,7 @@ import {
   loginUser,
   logoutUser,
   registerUser,
+  searchUser,
 } from "../controllers/user.controller.js";
 import { isAuth } from "../middlewares/isAuth.middleware.js";
 import { upload } from "../middlewares/mullter.middleware.js";
@@ -22,5 +23,6 @@ router
   .post(isAuth, upload.single("profilePhoto"), editProfile);
 router.route("/suggested-user").get(isAuth, getSuggestedUsers);
 router.route("/followorunfollow/:id").post(isAuth, followOrUnfollow);
+router.route("/search").get(isAuth, searchUser);
 
 export default router;

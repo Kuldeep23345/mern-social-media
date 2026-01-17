@@ -6,13 +6,13 @@ import { setSelectedUser } from "@/redux/authSlice";
 import { useSocket } from "@/context/SocketContext";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
-import { Send } from "lucide-react";
 import instance from "@/lib/axios.instance";
 import { toast } from "sonner";
+import { ArrowLeft, Search, Send } from "lucide-react";
 
 const ChatPage = () => {
   const { user, suggestedUser, selectedUser } = useSelector(
-    (store) => store.auth
+    (store) => store.auth,
   );
   const { socket, isUserOnline } = useSocket();
   const dispatch = useDispatch();
@@ -22,6 +22,7 @@ const ChatPage = () => {
   const [conversationId, setConversationId] = useState(null);
   const [typing, setTyping] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const messagesEndRef = useRef(null);
   const typingTimeoutRef = useRef(null);
 
@@ -38,11 +39,13 @@ const ChatPage = () => {
   useEffect(() => {
     if (selectedUser && socket && user) {
       loadMessages();
-      
+
       // Join room for this conversation
-      const roomId = [user._id?.toString(), selectedUser._id?.toString()].sort().join("-");
+      const roomId = [user._id?.toString(), selectedUser._id?.toString()]
+        .sort()
+        .join("-");
       socket.emit("joinRoom", roomId);
-      
+
       return () => {
         socket.emit("leaveRoom", roomId);
       };
@@ -58,14 +61,14 @@ const ChatPage = () => {
       const receiverIdStr = data.receiverId?.toString();
       const selectedUserIdStr = selectedUser?._id?.toString();
       const userIdStr = user?._id?.toString();
-      
+
       if (
         (senderIdStr === selectedUserIdStr && receiverIdStr === userIdStr) ||
         (senderIdStr === userIdStr && receiverIdStr === selectedUserIdStr)
       ) {
         setMessages((prev) => {
           // Check if message already exists to avoid duplicates
-          const exists = prev.some(msg => {
+          const exists = prev.some((msg) => {
             const msgId = msg._id?.toString();
             const dataId = data._id?.toString();
             return msgId && dataId && msgId === dataId;
@@ -76,25 +79,6 @@ const ChatPage = () => {
           return [...prev, data];
         });
 
-        // #region agent log
-        fetch("http://127.0.0.1:7242/ingest/2298cefe-44eb-4932-95fe-e57982e88dd6", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            sessionId: "debug-session",
-            runId: "pre-fix",
-            hypothesisId: "H2",
-            location: "frontend/src/components/main/ChatPage.jsx:handleNewMessage",
-            message: "ChatPage received matching newMessage",
-            data: {
-              senderId: senderIdStr,
-              receiverId: receiverIdStr,
-              selectedUserId: selectedUserIdStr,
-              userId: userIdStr,
-            },
-            timestamp: Date.now(),
-          }),
-        }).catch(() => {});
         // #endregion
 
         scrollToBottom();
@@ -118,7 +102,7 @@ const ChatPage = () => {
 
   const loadMessages = async () => {
     if (!selectedUser) return;
-    
+
     setLoading(true);
     try {
       const res = await instance.get(`/message/all/${selectedUser._id}`);
@@ -148,9 +132,12 @@ const ChatPage = () => {
     }
 
     try {
-      const res = await instance.post(`/message/send/${selectedUser._id?.toString()}`, {
-        message: messageText,
-      });
+      const res = await instance.post(
+        `/message/send/${selectedUser._id?.toString()}`,
+        {
+          message: messageText,
+        },
+      );
 
       if (res.data.success) {
         // Message will be added via Socket.IO event
@@ -189,8 +176,32 @@ const ChatPage = () => {
           isTyping: false,
         });
       }
-    }, 1000);
+    }, 2000);
   };
+
+  // Fix: Handle page refresh/unload to clear typing indicator
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (typing && socket && selectedUser) {
+        socket.emit("typing", {
+          receiverId: selectedUser._id?.toString(),
+          isTyping: false,
+        });
+      }
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      // Also clear when component unmounts
+      if (typing && socket && selectedUser) {
+        socket.emit("typing", {
+          receiverId: selectedUser._id?.toString(),
+          isTyping: false,
+        });
+      }
+    };
+  }, [typing, socket, selectedUser]);
 
   const handleKeyPress = (e) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -200,69 +211,106 @@ const ChatPage = () => {
   };
 
   return (
-    <div className="flex flex-col md:flex-row h-screen w-full">
+    <div className="flex flex-col md:flex-row h-[calc(100vh-64px)] md:h-screen w-full overflow-hidden">
       {/* Users List - Left Sidebar */}
-      <section className="w-full md:w-80 lg:w-96 border-r border-gray-200 dark:border-gray-800 flex flex-col h-screen">
-        <div className="p-4 border-b border-gray-200 dark:border-gray-800">
-          <h1 className="font-bold text-xl">{user?.username}</h1>
+      <section
+        className={`${selectedUser ? "hidden md:flex" : "flex"} w-full md:w-80 lg:w-96 border-r border-gray-200 dark:border-gray-800 flex flex-col h-full bg-white dark:bg-gray-950`}
+      >
+        <div className="p-4 border-b border-gray-200 dark:border-gray-800 space-y-4">
+          <h1 className="font-bold text-xl">{user?.name || user?.username}</h1>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search chats..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-transparent pl-10 pr-4 py-2 rounded-xl text-sm outline-none ring-1 ring-gray-200 dark:ring-gray-800 focus:ring-2 focus:ring-[#0095F6] transition-all"
+            />
+          </div>
         </div>
         <div className="overflow-y-auto flex-1">
-          {suggestedUser?.map((suggestedUserItem) => {
-            const isOnline = isUserOnline(suggestedUserItem._id);
-            const isSelected = selectedUser?._id === suggestedUserItem._id;
-            
-            return (
-              <div
-                onClick={() => {
-                  dispatch(setSelectedUser(suggestedUserItem));
-                }}
-                key={suggestedUserItem._id}
-                className={`flex gap-3 items-center p-3 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer transition-colors ${
-                  isSelected ? "bg-gray-100 dark:bg-gray-800" : ""
-                }`}
-              >
-                <div className="relative">
-                  <Avatar>
-                    <AvatarImage src={suggestedUserItem?.profilePicture} />
-                    <AvatarFallback>
-                      {suggestedUserItem?.username?.charAt(0)?.toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                  {isOnline && (
-                    <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white dark:border-gray-900 rounded-full"></span>
-                  )}
+          {suggestedUser
+            ?.filter((u) =>
+              (u.name || u.username)
+                ?.toLowerCase()
+                .includes(searchQuery.toLowerCase()),
+            )
+            ?.map((suggestedUserItem) => {
+              const isOnline = isUserOnline(suggestedUserItem._id);
+              const isSelected = selectedUser?._id === suggestedUserItem._id;
+
+              return (
+                <div
+                  onClick={() => {
+                    dispatch(setSelectedUser(suggestedUserItem));
+                  }}
+                  key={suggestedUserItem._id}
+                  className={`flex gap-3 items-center p-3 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer transition-colors ${
+                    isSelected ? "bg-gray-100 dark:bg-gray-800" : ""
+                  }`}
+                >
+                  <div className="relative">
+                    <Avatar>
+                      <AvatarImage src={suggestedUserItem?.profilePicture} />
+                      <AvatarFallback>
+                        {(
+                          suggestedUserItem?.name || suggestedUserItem?.username
+                        )
+                          ?.charAt(0)
+                          ?.toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    {isOnline && (
+                      <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white dark:border-gray-900 rounded-full"></span>
+                    )}
+                  </div>
+                  <div className="flex flex-col flex-1 min-w-0">
+                    <span className="font-medium truncate">
+                      {suggestedUserItem?.name || suggestedUserItem?.username}
+                    </span>
+                    <span className="text-xs text-gray-500 truncate">
+                      @{suggestedUserItem?.username}
+                    </span>
+                    <span
+                      className={`text-xs font-bold ${
+                        isOnline ? "text-green-600" : "text-gray-500"
+                      }`}
+                    >
+                      {isOnline ? "online" : "offline"}
+                    </span>
+                  </div>
                 </div>
-                <div className="flex flex-col flex-1 min-w-0">
-                  <span className="font-medium truncate">
-                    {suggestedUserItem?.username}
-                  </span>
-                  <span
-                    className={`text-xs font-bold ${
-                      isOnline ? "text-green-600" : "text-gray-500"
-                    }`}
-                  >
-                    {isOnline ? "online" : "offline"}
-                  </span>
-                </div>
-              </div>
-            );
-          })}
+              );
+            })}
         </div>
       </section>
 
       {/* Chat Area - Right Side */}
       {selectedUser ? (
-        <section className="flex-1 flex flex-col h-screen">
+        <section className="flex-1 flex flex-col h-full bg-white dark:bg-gray-950">
           {/* Chat Header */}
-          <div className="p-4 border-b border-gray-200 dark:border-gray-800 flex items-center gap-3">
-            <Avatar>
+          <div className="p-3 md:p-4 border-b border-gray-200 dark:border-gray-800 flex items-center gap-3">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="md:hidden"
+              onClick={() => dispatch(setSelectedUser(null))}
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <Avatar className="h-8 w-8 md:h-10 md:w-10">
               <AvatarImage src={selectedUser?.profilePicture} />
               <AvatarFallback>
-                {selectedUser?.username?.charAt(0)?.toUpperCase()}
+                {(selectedUser?.name || selectedUser?.username)
+                  ?.charAt(0)
+                  ?.toUpperCase()}
               </AvatarFallback>
             </Avatar>
             <div className="flex flex-col">
-              <span className="font-medium">{selectedUser?.username}</span>
+              <span className="font-medium">
+                {selectedUser?.name || selectedUser?.username}
+              </span>
               <span
                 className={`text-xs ${
                   isUserOnline(selectedUser._id)
@@ -284,57 +332,69 @@ const ChatPage = () => {
               </div>
             ) : messages.length === 0 ? (
               <div className="flex justify-center items-center h-full">
-                <p className="text-gray-500">No messages yet. Start a conversation!</p>
+                <p className="text-gray-500">
+                  No messages yet. Start a conversation!
+                </p>
               </div>
             ) : (
-              messages.map((message, index) => {
-                // Handle both API messages (senderId is object) and Socket.IO messages (senderId is string)
-                let senderIdStr = null;
-                if (message.senderId && typeof message.senderId === 'object' && message.senderId._id) {
-                  // API message with populated senderId
-                  senderIdStr = message.senderId._id.toString();
-                } else if (message.senderId) {
-                  // Socket.IO message or unpopulated senderId
-                  senderIdStr = message.senderId.toString();
-                }
-                
-                const userIdStr = user?._id?.toString();
-                const isOwnMessage = senderIdStr && userIdStr && senderIdStr === userIdStr;
-                
-                // Ensure message has required fields
-                if (!message.message) {
-                  return null;
-                }
-                
-                return (
-                  <div
-                    key={message._id || `msg-${index}-${Date.now()}`}
-                    className={`flex ${isOwnMessage ? "justify-end" : "justify-start"}`}
-                  >
+              messages
+                .map((message, index) => {
+                  // Handle both API messages (senderId is object) and Socket.IO messages (senderId is string)
+                  let senderIdStr = null;
+                  if (
+                    message.senderId &&
+                    typeof message.senderId === "object" &&
+                    message.senderId._id
+                  ) {
+                    // API message with populated senderId
+                    senderIdStr = message.senderId._id.toString();
+                  } else if (message.senderId) {
+                    // Socket.IO message or unpopulated senderId
+                    senderIdStr = message.senderId.toString();
+                  }
+
+                  const userIdStr = user?._id?.toString();
+                  const isOwnMessage =
+                    senderIdStr && userIdStr && senderIdStr === userIdStr;
+
+                  // Ensure message has required fields
+                  if (!message.message) {
+                    return null;
+                  }
+
+                  return (
                     <div
-                      className={`max-w-[70%] md:max-w-[60%] rounded-lg px-4 py-2 ${
-                        isOwnMessage
-                          ? "bg-blue-500 text-white"
-                          : "bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                      }`}
+                      key={message._id || `msg-${index}-${Date.now()}`}
+                      className={`flex ${isOwnMessage ? "justify-end" : "justify-start"}`}
                     >
-                      <p className="text-sm break-words">{message.message}</p>
-                      <p
-                        className={`text-xs mt-1 ${
-                          isOwnMessage ? "text-blue-100" : "text-gray-500"
+                      <div
+                        className={`max-w-[70%] md:max-w-[60%] rounded-lg px-4 py-2 ${
+                          isOwnMessage
+                            ? "bg-blue-500 text-white"
+                            : "bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                         }`}
                       >
-                        {message.createdAt
-                          ? new Date(message.createdAt).toLocaleTimeString([], {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })
-                          : ""}
-                      </p>
+                        <p className="text-sm break-words">{message.message}</p>
+                        <p
+                          className={`text-xs mt-1 ${
+                            isOwnMessage ? "text-blue-100" : "text-gray-500"
+                          }`}
+                        >
+                          {message.createdAt
+                            ? new Date(message.createdAt).toLocaleTimeString(
+                                [],
+                                {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                },
+                              )
+                            : ""}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                );
-              }).filter(Boolean)
+                  );
+                })
+                .filter(Boolean)
             )}
             <div ref={messagesEndRef} />
           </div>

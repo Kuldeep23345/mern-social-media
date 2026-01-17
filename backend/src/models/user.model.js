@@ -9,6 +9,10 @@ const userSchema = new Schema(
       required: true,
       unique: true,
     },
+    name: {
+      type: String,
+      default: "",
+    },
     email: {
       type: String,
       required: true,
@@ -30,32 +34,28 @@ const userSchema = new Schema(
       type: String,
       enum: ["male", "female"],
     },
-    followers: [
-      {
-        type: Schema.Types.ObjectId,
-        ref: "User",
-      },
-    ],
-    following: [
-      {
-        type: Schema.Types.ObjectId,
-        ref: "User",
-      },
-    ],
-    posts: [
-      {
-        type: Schema.Types.ObjectId,
-        ref: "Post",
-      },
-    ],
-    bookmarks: [
-      {
-        type: Schema.Types.ObjectId,
-        ref: "Post",
-      },
-    ],
+    followers: {
+      type: [{ type: Schema.Types.ObjectId, ref: "User" }],
+      default: [],
+    },
+    following: {
+      type: [{ type: Schema.Types.ObjectId, ref: "User" }],
+      default: [],
+    },
+    posts: {
+      type: [{ type: Schema.Types.ObjectId, ref: "Post" }],
+      default: [],
+    },
+    bookmarks: {
+      type: [{ type: Schema.Types.ObjectId, ref: "Post" }],
+      default: [],
+    },
+    favorites: {
+      type: [{ type: Schema.Types.ObjectId, ref: "Post" }],
+      default: [],
+    },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 userSchema.pre("save", async function name(next) {

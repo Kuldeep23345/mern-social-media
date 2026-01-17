@@ -43,7 +43,6 @@ const Signup = () => {
         navigate("/login");
       }
     } catch (error) {
-      console.log(error);
       toast.error(error?.response?.data?.message || "Login faild");
     } finally {
       setLoading(false);
@@ -102,15 +101,15 @@ const Signup = () => {
                     </Button>
                   ) : (
                     <Button type="submit" className="w-full cursor-pointer">
-                   Sign Up
+                      Sign Up
                     </Button>
                   )}
                 </div>
               </div>
               <div className="mt-4 text-center text-sm">
-               Already have an account?{" "}
+                Already have an account?{" "}
                 <Link to={"/login"} className="underline underline-offset-4">
-                 Login
+                  Login
                 </Link>
               </div>
             </form>

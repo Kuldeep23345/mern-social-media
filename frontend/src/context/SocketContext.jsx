@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { io } from "socket.io-client";
-import { useSelector } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
+import { setPosts, setSlectedPost } from "@/redux/postSlice";
 import { toast } from "sonner";
 
 const SocketContext = createContext();
@@ -18,14 +19,15 @@ export const SocketProvider = ({ children }) => {
   const [onlineUsers, setOnlineUsers] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const { user } = useSelector((store) => store.auth);
+  const { posts } = useSelector((store) => store.posts);
+  const dispatch = useDispatch();
 
   useEffect(() => {
     if (!user) return;
 
     // Get Socket.IO URL from environment or use default
-    const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || "http://localhost:8000";
-    
-    console.log(`Connecting to Socket.IO server at: ${SOCKET_URL}`);
+    const SOCKET_URL =
+      import.meta.env.VITE_SOCKET_URL || "http://localhost:8000";
 
     // Initialize Socket.IO connection
     const newSocket = io(SOCKET_URL, {
@@ -36,38 +38,19 @@ export const SocketProvider = ({ children }) => {
       reconnectionAttempts: 5,
     });
 
-    newSocket.on("connect", () => {
-      console.log("✅ Socket.IO connected successfully:", newSocket.id);
-      // #region agent log
-      fetch("http://127.0.0.1:7242/ingest/2298cefe-44eb-4932-95fe-e57982e88dd6", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sessionId: "debug-session",
-          runId: "pre-fix",
-          hypothesisId: "H1",
-          location: "frontend/src/context/SocketContext.jsx:connect",
-          message: "Socket connected on client",
-          data: { socketId: newSocket.id, userId: user?._id },
-          timestamp: Date.now(),
-        }),
-      }).catch(() => {});
-      // #endregion
-    });
-
-    newSocket.on("disconnect", (reason) => {
-      console.log("❌ Socket.IO disconnected:", reason);
-    });
+    newSocket.on("connect", () => {});
 
     newSocket.on("connect_error", (error) => {
       console.error("❌ Socket.IO connection error:", error.message);
       console.error("Error details:", error);
-      
+
       // Show user-friendly error message
       if (error.message.includes("Authentication")) {
         toast.error("Authentication failed. Please login again.");
       } else {
-        toast.error("Failed to connect to server. Please check your connection.");
+        toast.error(
+          "Failed to connect to server. Please check your connection.",
+        );
       }
     });
 
@@ -93,7 +76,7 @@ export const SocketProvider = ({ children }) => {
     // Handle notifications
     newSocket.on("newNotification", (notification) => {
       setNotifications((prev) => [notification, ...prev]);
-      
+
       // Show toast notification with different styles based on type
       const getToastConfig = () => {
         switch (notification.type) {
@@ -121,29 +104,45 @@ export const SocketProvider = ({ children }) => {
       };
 
       const config = getToastConfig();
-      
+
       toast.success(`${config.icon} ${config.message}`, {
         duration: 4000,
         description: notification.sender?.username
           ? `From ${notification.sender.username}`
           : undefined,
       });
+    });
 
-      // #region agent log
-      fetch("http://127.0.0.1:7242/ingest/2298cefe-44eb-4932-95fe-e57982e88dd6", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sessionId: "debug-session",
-          runId: "pre-fix",
-          hypothesisId: "H3",
-          location: "frontend/src/context/SocketContext.jsx:newNotification",
-          message: "Client received newNotification",
-          data: { type: notification.type, count: notifications.length + 1 },
-          timestamp: Date.now(),
-        }),
-      }).catch(() => {});
-      // #endregion
+    // Handle real-time post updates (likes/dislikes/comments)
+    newSocket.on("postUpdate", (data) => {
+      const { postId, likes, comments } = data;
+      dispatch((dispatch, getState) => {
+        const { posts, selectedPost } = getState().posts;
+
+        // Update posts list
+        const updatedPosts = posts.map((p) => {
+          if (p._id === postId) {
+            return {
+              ...p,
+              ...(likes !== undefined && { likes }),
+              ...(comments !== undefined && { comments }),
+            };
+          }
+          return p;
+        });
+        dispatch(setPosts(updatedPosts));
+
+        // Update selected post if it's the one that was updated
+        if (selectedPost && selectedPost._id === postId) {
+          dispatch(
+            setSlectedPost({
+              ...selectedPost,
+              ...(likes !== undefined && { likes }),
+              ...(comments !== undefined && { comments }),
+            }),
+          );
+        }
+      });
     });
 
     setSocket(newSocket);
@@ -172,4 +171,3 @@ export const SocketProvider = ({ children }) => {
     <SocketContext.Provider value={value}>{children}</SocketContext.Provider>
   );
 };
-

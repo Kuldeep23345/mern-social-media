@@ -61,11 +61,11 @@ const NotificationDropdown = ({ isOpen, onClose }) => {
   return (
     <div
       ref={dropdownRef}
-      className="w-80 md:w-96 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-[60] max-h-[500px] overflow-hidden flex flex-col"
+      className="w-full max-w-sm md:w-[420px] bg-white/90 dark:bg-gray-900/90 backdrop-blur-2xl rounded-[32px] shadow-[0_32px_64px_-12px_rgba(0,0,0,0.2)] border border-white/20 dark:border-gray-800/50 z-[60] max-h-[85vh] md:max-h-[640px] overflow-hidden flex flex-col ring-1 ring-black/5 dark:ring-white/5"
     >
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
-        <h2 className="text-lg font-semibold">Notifications</h2>
+      <div className="flex items-center justify-between p-4 md:p-6 border-b border-gray-100 dark:border-gray-800">
+        <h2 className="text-xl font-bold tracking-tight">Notifications</h2>
         <div className="flex items-center gap-2">
           {notifications.length > 0 && (
             <button
@@ -77,9 +77,9 @@ const NotificationDropdown = ({ isOpen, onClose }) => {
           )}
           <button
             onClick={onClose}
-            className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full"
+            className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors"
           >
-            <X className="w-4 h-4" />
+            <X className="w-5 h-5 text-gray-400 hover:text-gray-600" />
           </button>
         </div>
       </div>
@@ -92,22 +92,27 @@ const NotificationDropdown = ({ isOpen, onClose }) => {
             <p className="text-sm">No notifications yet</p>
           </div>
         ) : (
-          <div className="divide-y divide-gray-200 dark:divide-gray-700">
+          <div className="py-2">
             {notifications.map((notification, index) => (
               <div
                 key={index}
                 onClick={() => handleNotificationClick(notification)}
-                className="p-4 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer transition-colors"
+                className="p-4 mx-2 my-1 rounded-2xl hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer transition-all duration-200 group animate-in fade-in slide-in-from-bottom-2"
               >
                 <div className="flex items-start gap-3">
                   {/* Avatar */}
-                  <Avatar className="w-10 h-10 flex-shrink-0">
+                  <Avatar className="w-12 h-12 flex-shrink-0 ring-2 ring-transparent group-hover:ring-[#0095F6]/20 transition-all">
                     <AvatarImage
                       src={notification.sender?.profilePicture}
                       alt={notification.sender?.username}
                     />
                     <AvatarFallback>
-                      {notification.sender?.username?.charAt(0)?.toUpperCase()}
+                      {(
+                        notification.sender?.name ||
+                        notification.sender?.username
+                      )
+                        ?.charAt(0)
+                        ?.toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
 
@@ -120,15 +125,21 @@ const NotificationDropdown = ({ isOpen, onClose }) => {
                       <div className="flex-1">
                         <p className="text-sm text-gray-900 dark:text-gray-100">
                           <span className="font-semibold">
-                            {notification.sender?.username || "Someone"}
+                            {notification.sender?.name ||
+                              notification.sender?.username ||
+                              "Someone"}
                           </span>{" "}
-                          {notification.message || "interacted with your content"}
+                          {notification.message ||
+                            "interacted with your content"}
                         </p>
                         {notification.createdAt && (
                           <p className="text-xs text-gray-500 mt-1">
-                            {formatDistanceToNow(new Date(notification.createdAt), {
-                              addSuffix: true,
-                            })}
+                            {formatDistanceToNow(
+                              new Date(notification.createdAt),
+                              {
+                                addSuffix: true,
+                              },
+                            )}
                           </p>
                         )}
                       </div>
@@ -145,4 +156,3 @@ const NotificationDropdown = ({ isOpen, onClose }) => {
 };
 
 export default NotificationDropdown;
-

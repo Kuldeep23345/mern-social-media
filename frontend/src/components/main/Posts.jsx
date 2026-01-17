@@ -1,19 +1,19 @@
-import React from 'react'
-import Post from './Post'
-import { useSelector } from 'react-redux'
+import React from "react";
+import Post from "./Post";
+import { useSelector } from "react-redux";
 
 const Posts = () => {
-  const { posts } = useSelector(store => store.posts)
+  const { posts } = useSelector((store) => store.posts);
   // Filter out posts with missing authors (deleted users)
-  const validPosts = posts?.filter(post => post && post.author) || []
-  
+  const validPosts = posts?.filter((post) => post && post.author) || [];
+
   return (
-    <div >
+    <div className="flex flex-col items-center gap-4 py-8">
       {validPosts.map((post) => (
         <Post key={post._id} post={post} />
       ))}
     </div>
-  )
-}
+  );
+};
 
-export default Posts
+export default Posts;

@@ -20,15 +20,17 @@ import CreatePost from "./CreatePost";
 import { setPosts, setSlectedPost } from "@/redux/postSlice";
 import { useSocket } from "@/context/SocketContext";
 import NotificationDropdown from "./NotificationDropdown";
+import SearchUser from "./SearchUser";
 
 const Sidebar = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const [open, setOpen] = useState(false);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [notificationOpen, setNotificationOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const { user } = useSelector((store) => store.auth);
   const { notifications } = useSocket();
+
   const sidebarItems = [
     {
       icon: <Home />,
@@ -75,7 +77,7 @@ const Sidebar = () => {
         <Avatar>
           <AvatarImage className={"object-cover"} src={user?.profilePicture} />
           <AvatarFallback>
-            {user?.username?.charAt(0)?.toUpperCase()}
+            {(user?.name || user?.username)?.charAt(0)?.toUpperCase()}
           </AvatarFallback>
         </Avatar>
       ),
@@ -88,6 +90,7 @@ const Sidebar = () => {
       link: null,
     },
   ];
+
   const logoutHandler = async () => {
     try {
       const res = await instance.get("/user/logout");
@@ -99,87 +102,74 @@ const Sidebar = () => {
         dispatch(setPosts([]));
       }
     } catch (error) {
-      console.log(error);
-      toast.error(error?.data?.response?.message);
+      toast.error(error?.response?.data?.message);
     }
   };
 
   const sidebarHandler = (item) => {
     if (item.link) {
       navigate(item.link);
-      setMobileMenuOpen(false);
     } else if (item.text.toLowerCase() == "logout") {
       logoutHandler();
-      setMobileMenuOpen(false);
     } else if (item.text.toLowerCase() == "create") {
       setOpen(true);
-      setMobileMenuOpen(false);
     } else if (item.text.toLowerCase() == "profile") {
       navigate(`/profile/${user?._id}`);
-      setMobileMenuOpen(false);
     } else if (item.isNotification) {
       setNotificationOpen(!notificationOpen);
-      setMobileMenuOpen(false);
-    } else {
-      setMobileMenuOpen(false);
+      setSearchOpen(false);
+    } else if (item.text.toLowerCase() === "search") {
+      setSearchOpen(!searchOpen);
+      setNotificationOpen(false);
     }
   };
 
   return (
-    <>
-      {/* Mobile Menu Button */}
-      <button
-        onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-        className="md:hidden fixed top-4 left-4 z-50 p-2 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700"
-      >
-        {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
-      </button>
-
-      {/* Sidebar */}
-      <section
-        className={`w-[240px] fixed h-screen top-0 bottom-0 left-0 z-40 border-r border-gray-300/40 bg-white dark:bg-gray-900 transition-transform duration-300 ${
-          mobileMenuOpen ? "translate-x-0" : "-translate-x-full"
-        } md:translate-x-0`}
-      >
-        <div className="flex flex-col gap-8 pl-10 mt-28">
-          {sidebarItems.map((item, index) => (
-            <div
-              key={index}
-              className={`relative ${item.isNotification ? "z-[55]" : ""}`}
-            >
-              <div
-                onClick={() => sidebarHandler(item)}
-                className={`flex items-center gap-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 p-2 rounded-lg transition-colors ${
-                  item.isNotification && notificationOpen
-                    ? "bg-gray-100 dark:bg-gray-800"
-                    : ""
-                }`}
-              >
-                {item.icon}
-                <span>{item.text}</span>
-              </div>
-              {item.isNotification && (
-                <div className="absolute top-full left-0 mt-2">
-                  <NotificationDropdown
-                    isOpen={notificationOpen}
-                    onClose={() => setNotificationOpen(false)}
-                  />
-                </div>
-              )}
-            </div>
-          ))}
+    <section className="w-[240px] fixed h-screen top-0 bottom-0 left-0 z-40 border-r border-gray-300/40 bg-white dark:bg-gray-900">
+      <div className="flex flex-col gap-8 px-6 mt-12 h-full overflow-y-auto pb-10">
+        <div className="mb-4">
+          <h1 className="text-2xl font-bold tracking-tighter italic">Social</h1>
         </div>
-        <CreatePost open={open} setOpen={setOpen} />
-      </section>
-
-      {/* Mobile Overlay */}
-      {mobileMenuOpen && (
-        <div
-          className="md:hidden fixed inset-0 bg-black/50 z-30"
-          onClick={() => setMobileMenuOpen(false)}
-        />
-      )}
-    </>
+        {sidebarItems.map((item, index) => (
+          <div
+            key={index}
+            className={`relative ${item.isNotification ? "z-[55]" : ""}`}
+          >
+            <div
+              onClick={() => sidebarHandler(item)}
+              className={`flex items-center gap-4 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 p-3 rounded-xl transition-all duration-200 group ${
+                (item.isNotification && notificationOpen) ||
+                (item.text.toLowerCase() === "search" && searchOpen)
+                  ? "bg-gray-100 dark:bg-gray-800 font-bold"
+                  : ""
+              }`}
+            >
+              <div className="group-hover:scale-110 transition-transform duration-200">
+                {item.icon}
+              </div>
+              <span className="text-sm font-medium">{item.text}</span>
+            </div>
+            {item.isNotification && (
+              <div className="fixed top-0 left-[240px] z-[60] py-6">
+                <NotificationDropdown
+                  isOpen={notificationOpen}
+                  onClose={() => setNotificationOpen(false)}
+                />
+              </div>
+            )}
+            {item.text.toLowerCase() === "search" && (
+              <div className="fixed top-0 left-[240px] z-[60] py-6">
+                <SearchUser
+                  isOpen={searchOpen}
+                  onClose={() => setSearchOpen(false)}
+                />
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+      <CreatePost open={open} setOpen={setOpen} />
+    </section>
   );
 };
 

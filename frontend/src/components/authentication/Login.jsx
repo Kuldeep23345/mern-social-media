@@ -36,7 +36,6 @@ const Login = () => {
     try {
       const res = await instance.post("/user/login", input);
       if (res.data.success) {
-        
         dispatch(setAuthUser(res?.data?.existedUsers));
         toast.success(res?.data?.message);
         setInput({
@@ -46,7 +45,6 @@ const Login = () => {
         navigate("/");
       }
     } catch (error) {
-      console.log(error);
       toast.error(error?.response?.data?.message || "Login faild");
     } finally {
       setLoading(false);

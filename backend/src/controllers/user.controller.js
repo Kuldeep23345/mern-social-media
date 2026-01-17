@@ -23,6 +23,7 @@ const registerUser = async (req, res) => {
 
     const newUser = await User.create({
       username,
+      name: username, // default name to username
       email,
       password,
     });
@@ -67,9 +68,8 @@ const loginUser = async (req, res) => {
         } else {
           return null;
         }
-      })
+      }),
     );
-    console.log(token);
 
     existedUsers.posts = populatedPosts;
     await existedUsers.save();
@@ -111,7 +111,10 @@ const logoutUser = async (_, res) => {
 const getProfile = async (req, res) => {
   try {
     const userId = req.params.id;
-    const user = await User.findById(userId).populate({path:'posts',createdAt:-1}).populate('bookmarks')
+    const user = await User.findById(userId)
+      .populate({ path: "posts", createdAt: -1 })
+      .populate("bookmarks")
+      .populate("favorites");
     return res.status(200).json({ user, success: true });
   } catch (error) {
     console.log("Error in login user", error);
@@ -125,7 +128,7 @@ const getProfile = async (req, res) => {
 const editProfile = async (req, res) => {
   try {
     const userId = req.user._id;
-    const { bio, gender } = req.body;
+    const { bio, gender, username, name } = req.body;
     const profilePhoto = req.file?.path || null;
     let profilePhotoLocalPath;
     if (profilePhoto) {
@@ -139,8 +142,19 @@ const editProfile = async (req, res) => {
         .json({ message: "User not found", success: false });
     }
 
+    if (username && username !== user.username) {
+      const existedUser = await User.findOne({ username });
+      if (existedUser) {
+        return res
+          .status(409)
+          .json({ message: "Username already taken", success: false });
+      }
+      user.username = username;
+    }
+
     if (bio) user.bio = bio;
     if (gender) user.gender = gender;
+    if (name) user.name = name;
     if (profilePhoto) user.profilePicture = profilePhotoLocalPath.secure_url;
 
     await user.save();
@@ -157,12 +171,38 @@ const editProfile = async (req, res) => {
   }
 };
 
+const searchUser = async (req, res) => {
+  try {
+    const query = req.query.query || "";
+    if (!query) {
+      return res.status(200).json({ users: [], success: true });
+    }
+
+    const users = await User.find({
+      $or: [
+        { username: { $regex: query, $options: "i" } },
+        { name: { $regex: query, $options: "i" } },
+        { bio: { $regex: query, $options: "i" } },
+      ],
+      _id: { $ne: req.user._id },
+    }).select("-password");
+
+    return res.status(200).json({ users, success: true });
+  } catch (error) {
+    console.log("Error in searchUser", error);
+    return res.status(500).json({
+      message: "Internal server error in searchUser",
+      success: false,
+    });
+  }
+};
+
 const getSuggestedUsers = async (req, res) => {
   try {
     const userId = req.user._id;
 
     const suggestedUsers = await User.find({ _id: { $ne: userId } }).select(
-      "-password"
+      "-password",
     );
 
     if (!suggestedUsers) {
@@ -185,7 +225,7 @@ const followOrUnfollow = async (req, res) => {
     const followKarneWala = req.user._id;
     const jiskoFollowKaronga = req.params.id;
 
-    if (followKarneWala === jiskoFollowKaronga) {
+    if (followKarneWala.toString() === jiskoFollowKaronga) {
       return res.status(400).json({
         message: "You can't follow or unfollow yourself",
         success: false,
@@ -203,51 +243,53 @@ const followOrUnfollow = async (req, res) => {
     //  now i am checking that we have to follow and unfollow
 
     const isFollowing = user.following.some(
-      (id) => id.toString() === jiskoFollowKaronga.toString()
+      (id) => id.toString() === jiskoFollowKaronga.toString(),
     );
-    
+
     if (isFollowing) {
       await Promise.all([
         User.updateOne(
           { _id: followKarneWala },
-          { $pull: { following: jiskoFollowKaronga } }
+          { $pull: { following: jiskoFollowKaronga } },
         ),
         User.updateOne(
           { _id: jiskoFollowKaronga },
-          { $pull: { followers: followKarneWala } }
+          { $pull: { followers: followKarneWala } },
         ),
       ]);
-      
+
       // Fetch updated user data
-      const updatedUser = await User.findById(followKarneWala).select("-password");
-      
-      return res
-        .status(200)
-        .json({ 
-          message: "Unfollowed successfully", 
-          success: true,
-          user: updatedUser,
-          action: "unfollow"
-        });
+      const updatedUser =
+        await User.findById(followKarneWala).select("-password");
+
+      return res.status(200).json({
+        message: "Unfollowed successfully",
+        success: true,
+        user: updatedUser,
+        action: "unfollow",
+      });
     } else {
       await Promise.all([
         User.updateOne(
           { _id: followKarneWala },
-          { $push: { following: jiskoFollowKaronga } }
+          { $push: { following: jiskoFollowKaronga } },
         ),
         User.updateOne(
           { _id: jiskoFollowKaronga },
-          { $push: { followers: followKarneWala } }
+          { $push: { followers: followKarneWala } },
         ),
       ]);
-      
+
       // Fetch updated user data
-      const updatedUser = await User.findById(followKarneWala).select("-password");
-      
+      const updatedUser =
+        await User.findById(followKarneWala).select("-password");
+
       // Send notification
       try {
         const io = getIO();
-        const follower = await User.findById(followKarneWala).select("username profilePicture");
+        const follower = await User.findById(followKarneWala).select(
+          "username profilePicture",
+        );
         io.to(jiskoFollowKaronga.toString()).emit("newNotification", {
           senderId: followKarneWala.toString(),
           receiverId: jiskoFollowKaronga.toString(),
@@ -263,15 +305,13 @@ const followOrUnfollow = async (req, res) => {
       } catch (socketError) {
         console.log("Socket.IO error in followOrUnfollow:", socketError);
       }
-      
-      return res
-        .status(200)
-        .json({ 
-          message: "followed successfully", 
-          success: true,
-          user: updatedUser,
-          action: "follow"
-        });
+
+      return res.status(200).json({
+        message: "followed successfully",
+        success: true,
+        user: updatedUser,
+        action: "follow",
+      });
     }
   } catch (error) {
     console.log("Error in followOrUnfollow ", error);
@@ -290,4 +330,5 @@ export {
   editProfile,
   getSuggestedUsers,
   followOrUnfollow,
+  searchUser,
 };

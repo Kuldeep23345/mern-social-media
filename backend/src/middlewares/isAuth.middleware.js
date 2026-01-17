@@ -12,7 +12,6 @@ export const isAuth = async (req, res, next) => {
       return res.status(401).json({ message: "User unauthorized" });
     }
 
-    // Ensure the user still exists (e.g., deleted in DB)
     const user = await User.findById(decode._id).select("_id");
     if (!user) {
       res.clearCookie("token", {
