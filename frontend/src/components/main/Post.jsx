@@ -48,7 +48,6 @@ const Post = ({ post }) => {
       setText("");
     }
   };
-
   const deletePostHandler = async () => {
     try {
       const res = await instance.delete(`/post/delete/${post?._id}`);
@@ -153,6 +152,7 @@ const Post = ({ post }) => {
       setFollowLoading(false);
     }
   };
+
   const bookmarkHandler = async () => {
     try {
       const res = await instance.get(`/post/${post?._id}/bookmark`);

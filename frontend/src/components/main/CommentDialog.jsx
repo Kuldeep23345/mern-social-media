@@ -3,17 +3,18 @@ import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 
 import { Link } from "react-router-dom";
-import { MoreHorizontal } from "lucide-react";
 import { Button } from "../ui/button";
 import { useDispatch, useSelector } from "react-redux";
 import Comment from "./Comment";
 import { toast } from "sonner";
 import instance from "@/lib/axios.instance";
 import { setPosts, setSlectedPost } from "@/redux/postSlice";
+import { setAuthUser, setUserProfile } from "@/redux/authSlice";
 
 const CommentDialog = ({ open, setOpen }) => {
   const [text, setText] = useState("");
   const { selectedPost, posts } = useSelector((store) => store.posts);
+  const { user } = useSelector((store) => store.auth);
   const dispatch = useDispatch();
 
   const comments = selectedPost?.comments || [];
@@ -56,6 +57,7 @@ const CommentDialog = ({ open, setOpen }) => {
       toast.error(error?.response?.data?.message);
     }
   };
+
   return (
     <section>
       <Dialog open={open}>
@@ -101,21 +103,6 @@ const CommentDialog = ({ open, setOpen }) => {
                     {/* <span className="text-gray-600 text-sm">bio here ..</span> */}
                   </div>
                 </div>
-                <Dialog>
-                  <DialogTrigger asChild>
-                    <MoreHorizontal className="cursor-pointer" />
-                  </DialogTrigger>
-                  <DialogContent
-                    className={"flex flex-col items-center text-sm text-center"}
-                  >
-                    <div className="cursor-pointer w-full text-center text-red-500">
-                      UnFollow
-                    </div>
-                    <div className="cursor-pointer w-full text-center ">
-                      Add to Favorites
-                    </div>
-                  </DialogContent>
-                </Dialog>
               </div>
               <hr />
               <div className="flex-1 flex-col overflow-y-auto max-h-auto p-4">
