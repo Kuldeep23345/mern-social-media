@@ -47,7 +47,19 @@ const addStory = async (req, res) => {
 
 const getAllStories = async (req, res) => {
   try {
-    const stories = await Story.find()
+    const userId = req.user._id;
+    const user = await User.findById(userId).select("following");
+
+    if (!user) {
+      return res
+        .status(404)
+        .json({ message: "User not found", success: false });
+    }
+
+    const followingUsers = user.following;
+    const stories = await Story.find({
+      author: { $in: [...followingUsers, userId] },
+    })
       .sort({ createdAt: -1 })
       .populate({ path: "author", select: "username profilePicture" });
 

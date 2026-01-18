@@ -27,7 +27,7 @@ const StoryTray = () => {
       }
     };
     fetchStories();
-  }, [dispatch]);
+  }, [dispatch, user?.following]);
 
   const handleFileChange = async (e) => {
     const file = e.target.files[0];
