@@ -17,7 +17,8 @@ const CreatePost = ({ open, setOpen }) => {
   const [loading, setLoading] = useState(false);
   const [file, setFile] = useState("");
   const [caption, setCaption] = useState("");
-  const [imagePreview, setImagePreview] = useState("");
+  const [filePreview, setFilePreview] = useState("");
+  const [fileType, setFileType] = useState(""); // 'image' or 'video'
   const readFileAsDataURL = (file) => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -39,14 +40,15 @@ const CreatePost = ({ open, setOpen }) => {
 
     if (file) {
       setFile(file);
+      setFileType(file.type.startsWith("video") ? "video" : "image");
       const dataUrl = await readFileAsDataURL(file);
-      setImagePreview(dataUrl);
+      setFilePreview(dataUrl);
     }
   };
   const createPostHandler = async (e) => {
     const formData = new FormData();
     formData.append("caption", caption);
-    if (file) formData.append("image", file);
+    if (file) formData.append("file", file);
     try {
       setLoading(true);
       const res = await instance.post("/post/addpost", formData, {
@@ -56,7 +58,8 @@ const CreatePost = ({ open, setOpen }) => {
         dispatch(setPosts([res.data.post, ...posts]));
         toast.success(res?.data?.message);
         setCaption("");
-        setImagePreview("");
+        setFilePreview("");
+        setFile("");
         setOpen(false);
       }
     } catch (error) {
@@ -89,18 +92,27 @@ const CreatePost = ({ open, setOpen }) => {
           className={"border-none focus-visible:ring-transparent"}
           placeholder="write a caption"
         />
-        {imagePreview && (
-          <div className="w-full h-64 flex items-center justify-center">
-            <img
-              className="object-cover h-full w-full rounded-md"
-              src={imagePreview}
-              alt="previe_img"
-            />
+        {filePreview && (
+          <div className="w-full h-64 flex items-center justify-center bg-black/5 rounded-md overflow-hidden">
+            {fileType === "video" ? (
+              <video
+                src={filePreview}
+                className="h-full w-full object-contain"
+                controls
+              />
+            ) : (
+              <img
+                className="object-cover h-full w-full"
+                src={filePreview}
+                alt="preview"
+              />
+            )}
           </div>
         )}
         <input
           ref={imageRef}
           type="file"
+          accept="image/*,video/*"
           className="hidden"
           onChange={fileChangeHandler}
         />
@@ -112,9 +124,9 @@ const CreatePost = ({ open, setOpen }) => {
         >
           Select from device
         </Button>
-        {imagePreview &&
+        {filePreview &&
           (loading ? (
-            <Button>
+            <Button disabled className="w-full">
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               Please wait
             </Button>

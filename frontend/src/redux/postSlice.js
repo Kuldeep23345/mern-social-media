@@ -2,7 +2,8 @@ import { createSlice } from "@reduxjs/toolkit";
 
 const initialState = {
   posts: [],
-  selectedPost:null,
+  selectedPost: null,
+  stories: [],
 };
 
 export const postSlice = createSlice({
@@ -15,9 +16,12 @@ export const postSlice = createSlice({
     setSlectedPost: (state, action) => {
       state.selectedPost = action.payload;
     },
+    setStories: (state, action) => {
+      state.stories = action.payload;
+    },
   },
 });
 
-export const { setPosts,setSlectedPost } = postSlice.actions;
+export const { setPosts, setSlectedPost, setStories } = postSlice.actions;
 
 export default postSlice.reducer;

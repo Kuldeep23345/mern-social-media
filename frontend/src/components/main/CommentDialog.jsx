@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
+import { X, MoreHorizontal, Trash2, Loader2 } from "lucide-react";
 
 import { Link } from "react-router-dom";
 import { Button } from "../ui/button";
@@ -13,9 +14,17 @@ import { setAuthUser, setUserProfile } from "@/redux/authSlice";
 
 const CommentDialog = ({ open, setOpen }) => {
   const [text, setText] = useState("");
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [postDeleted, setPostDeleted] = useState(false);
   const { selectedPost, posts } = useSelector((store) => store.posts);
   const { user } = useSelector((store) => store.auth);
   const dispatch = useDispatch();
+
+  useEffect(() => {
+    if (postDeleted) {
+      window.location.reload();
+    }
+  }, [postDeleted]);
 
   const comments = selectedPost?.comments || [];
 
@@ -43,7 +52,6 @@ const CommentDialog = ({ open, setOpen }) => {
         );
         dispatch(setPosts(updatedPostData));
 
-        // Also update selectedPost in Redux to reflect immediately in the dialog
         dispatch(
           setSlectedPost({
             ...selectedPost,
@@ -58,10 +66,60 @@ const CommentDialog = ({ open, setOpen }) => {
     }
   };
 
+  const deletePostHandler = async () => {
+    let deleteSuccessful = false;
+    try {
+      setDeleteLoading(true);
+      const res = await instance.delete(`/post/delete/${selectedPost?._id}`);
+      if (res.data.success) {
+        deleteSuccessful = true;
+        toast.success(res.data.message);
+
+        try {
+          const currentPosts = Array.isArray(posts) ? posts : [];
+          const updatedPosts = currentPosts.filter(
+            (postItem) => postItem?._id !== selectedPost?._id,
+          );
+          dispatch(setPosts(updatedPosts));
+
+          if (userProfile?._id === user?._id) {
+            const currentProfilePosts = Array.isArray(userProfile?.posts)
+              ? userProfile.posts
+              : [];
+            const updatedUserProfile = {
+              ...userProfile,
+              posts: currentProfilePosts.filter(
+                (p) => p?._id !== selectedPost?._id,
+              ),
+            };
+            dispatch(setUserProfile(updatedUserProfile));
+          }
+        } catch (stateError) {
+          console.error("State update error:", stateError);
+        }
+
+        setOpen(false);
+        setPostDeleted(true);
+      }
+    } catch (error) {
+      if (deleteSuccessful) {
+        console.error("Post-delete cleanup error:", error);
+        return;
+      }
+      console.error("Delete post error:", error);
+      const errorMessage =
+        error?.response?.data?.message ||
+        error?.message ||
+        "Something went wrong";
+      toast.error(errorMessage);
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
   return (
     <section>
       <Dialog open={open}>
-        {/* <DialogTrigger>Open</DialogTrigger> */}
         <DialogContent
           onInteractOutside={() => setOpen(false)}
           className={
@@ -69,12 +127,22 @@ const CommentDialog = ({ open, setOpen }) => {
           }
         >
           <div className="flex flex-1">
-            <div className="w-1/2">
-              <img
-                src={selectedPost?.image}
-                alt=""
-                className="h-full w-full object-cover"
-              />
+            <div className="w-1/2 flex items-center justify-center bg-black">
+              {selectedPost?.postType === "reel" ? (
+                <video
+                  src={selectedPost?.video}
+                  className="h-full w-full object-contain"
+                  controls
+                  autoPlay
+                  loop
+                />
+              ) : (
+                <img
+                  src={selectedPost?.image}
+                  alt="post-img"
+                  className="h-full w-full object-cover"
+                />
+              )}
             </div>
             <div className="w-1/2 flex flex-col justify-between">
               <div className="flex items-center justify-between p-4">
@@ -100,8 +168,33 @@ const CommentDialog = ({ open, setOpen }) => {
                       {selectedPost?.author?.name ||
                         selectedPost?.author?.username}
                     </Link>
-                    {/* <span className="text-gray-600 text-sm">bio here ..</span> */}
                   </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {user?._id === selectedPost?.author?._id?.toString() && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="cursor-pointer hover:bg-red-50 hover:text-red-500 rounded-full h-8 w-8 transition-colors"
+                      onClick={deletePostHandler}
+                      disabled={deleteLoading}
+                    >
+                      {deleteLoading ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="w-4 h-4" />
+                      )}
+                    </Button>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="cursor-pointer hover:bg-gray-100 rounded-full h-8 w-8"
+                    onClick={() => setOpen(false)}
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
                 </div>
               </div>
               <hr />

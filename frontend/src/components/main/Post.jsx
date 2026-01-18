@@ -237,12 +237,21 @@ const Post = ({ post }) => {
           </DialogContent>
         </Dialog>
       </div>
-      <div className="flex items-center justify-center w-full h-auto">
-        <img
-          src={post?.image}
-          alt="post-img"
-          className="w-full mt-2 h-[300px] md:h-[400px] object-cover rounded-lg"
-        />
+      <div className="flex items-center justify-center w-full h-auto overflow-hidden rounded-lg mt-2">
+        {post?.postType === "reel" ? (
+          <video
+            src={post?.video}
+            className="w-full h-[300px] md:h-[400px] object-cover"
+            controls
+            playsInline
+          />
+        ) : (
+          <img
+            src={post?.image}
+            alt="post-img"
+            className="w-full h-[300px] md:h-[400px] object-cover"
+          />
+        )}
       </div>
       <div>
         <div className="flex items-center justify-between">

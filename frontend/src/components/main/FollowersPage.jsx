@@ -29,7 +29,16 @@ const FollowersPage = () => {
           : `/user/${id}/following`;
         const res = await instance.get(endpoint);
         if (res.data.success) {
-          setUsers(isFollowersPage ? res.data.followers : res.data.following);
+          const fetchedUsers = isFollowersPage
+            ? res.data.followers
+            : res.data.following;
+          setUsers(fetchedUsers);
+
+          // Sync Redux if viewing own following list to ensure button states are correct
+          if (!isFollowersPage && user && id === user?._id) {
+            const followingIds = fetchedUsers.map((u) => u._id);
+            dispatch(setAuthUser({ ...user, following: followingIds }));
+          }
         }
       } catch (error) {
         console.error("Error fetching users:", error);
@@ -78,7 +87,9 @@ const FollowersPage = () => {
   };
 
   const isFollowing = (targetUserId) => {
-    return user?.following?.includes(targetUserId);
+    return user?.following?.some(
+      (id) => id.toString() === targetUserId.toString(),
+    );
   };
 
   return (

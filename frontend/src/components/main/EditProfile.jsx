@@ -23,6 +23,7 @@ const EditProfile = () => {
   const imageRef = useRef();
   const { user } = useSelector((store) => store.auth);
   const [loading, setLoading] = useState(false);
+  const [preview, setPreview] = useState("");
   const [input, setInput] = useState({
     profilePicture: user?.profilePicture,
     bio: user?.bio,
@@ -37,6 +38,11 @@ const EditProfile = () => {
     const file = e.target.files?.[0];
     if (file) {
       setInput({ ...input, profilePicture: file });
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPreview(reader.result);
+      };
+      reader.readAsDataURL(file);
     }
   };
   const selectChangeHandler = (value) => {
@@ -86,9 +92,11 @@ const EditProfile = () => {
             <Avatar>
               <AvatarImage
                 className={"object-cover"}
-                src={user?.profilePicture}
+                src={preview || user?.profilePicture}
               />
-              <AvatarFallback>CN</AvatarFallback>
+              <AvatarFallback>
+                {(user?.name || user?.username)?.charAt(0)?.toUpperCase()}
+              </AvatarFallback>
             </Avatar>
 
             <div className="flex items-center gap-3">

@@ -12,11 +12,13 @@ import {
   getCommentOfPost,
   getUserPost,
   likePost,
+  getReels,
 } from "../controllers/post.controller.js";
 
 const router = express.Router();
 
-router.route("/addpost").post(isAuth, upload.single("image"), addNewPost);
+router.route("/addpost").post(isAuth, upload.single("file"), addNewPost);
+router.route("/reels").get(isAuth, getReels);
 router.route("/get").get(isAuth, getAllPost);
 router.route("/userpost-all").get(isAuth, getUserPost);
 router.route("/:id/like").get(isAuth, likePost);

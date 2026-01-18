@@ -11,7 +11,6 @@ const NotificationDropdown = ({ isOpen, onClose }) => {
   const navigate = useNavigate();
   const dropdownRef = useRef(null);
 
-  // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
@@ -45,9 +44,7 @@ const NotificationDropdown = ({ isOpen, onClose }) => {
     if (notification.type === "follow") {
       navigate(`/profile/${notification.senderId}`);
     } else if (notification.postId) {
-      // Navigate to post or open post dialog
       navigate("/");
-      // You can dispatch an action to open the post dialog here
     }
     onClose();
   };
@@ -61,9 +58,8 @@ const NotificationDropdown = ({ isOpen, onClose }) => {
   return (
     <div
       ref={dropdownRef}
-      className="w-full max-w-sm md:w-[420px] bg-white/90 dark:bg-gray-900/90 backdrop-blur-2xl rounded-[32px] shadow-[0_32px_64px_-12px_rgba(0,0,0,0.2)] border border-white/20 dark:border-gray-800/50 z-[60] max-h-[85vh] md:max-h-[640px] overflow-hidden flex flex-col ring-1 ring-black/5 dark:ring-white/5"
+      className="w-full md:max-w-sm md:w-[420px] bg-white dark:bg-gray-900 backdrop-blur-2xl md:rounded-[32px] shadow-[0_32px_64px_-12px_rgba(0,0,0,0.2)] border-t md:border border-white/20 dark:border-gray-800/50 z-[60] h-full md:max-h-[640px] overflow-hidden flex flex-col ring-1 ring-black/5 dark:ring-white/5"
     >
-      {/* Header */}
       <div className="flex items-center justify-between p-4 md:p-6 border-b border-gray-100 dark:border-gray-800">
         <h2 className="text-xl font-bold tracking-tight">Notifications</h2>
         <div className="flex items-center gap-2">
@@ -84,7 +80,6 @@ const NotificationDropdown = ({ isOpen, onClose }) => {
         </div>
       </div>
 
-      {/* Notifications List */}
       <div className="overflow-y-auto flex-1">
         {notifications.length === 0 ? (
           <div className="flex flex-col items-center justify-center p-8 text-gray-500">
@@ -100,7 +95,6 @@ const NotificationDropdown = ({ isOpen, onClose }) => {
                 className="p-4 mx-2 my-1 rounded-2xl hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer transition-all duration-200 group animate-in fade-in slide-in-from-bottom-2"
               >
                 <div className="flex items-start gap-3">
-                  {/* Avatar */}
                   <Avatar className="w-12 h-12 flex-shrink-0 ring-2 ring-transparent group-hover:ring-[#0095F6]/20 transition-all">
                     <AvatarImage
                       src={notification.sender?.profilePicture}
@@ -116,7 +110,6 @@ const NotificationDropdown = ({ isOpen, onClose }) => {
                     </AvatarFallback>
                   </Avatar>
 
-                  {/* Content */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start gap-2">
                       <div className="flex-shrink-0 mt-0.5">

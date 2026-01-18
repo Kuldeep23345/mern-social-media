@@ -7,6 +7,7 @@ import {
   Search,
   TrendingUp,
   Menu,
+  Video,
   X,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -46,6 +47,11 @@ const Sidebar = () => {
       icon: <TrendingUp />,
       text: "Explore",
       link: null,
+    },
+    {
+      icon: <Video />,
+      text: "Reels",
+      link: "/reels",
     },
     {
       icon: <MessageCircle />,

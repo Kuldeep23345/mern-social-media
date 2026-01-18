@@ -1,4 +1,11 @@
-import { Home, Search, PlusSquare, MessageCircle, Heart } from "lucide-react";
+import {
+  Home,
+  Search,
+  PlusSquare,
+  MessageCircle,
+  Heart,
+  Video,
+} from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useSelector } from "react-redux";
@@ -27,6 +34,11 @@ const BottomBar = () => {
       icon: <Search className={isActive("/search") ? "stroke-[3px]" : ""} />,
       action: () => setSearchOpen(true),
       label: "Search",
+    },
+    {
+      icon: <Video className={isActive("/reels") ? "stroke-[3px]" : ""} />,
+      path: "/reels",
+      label: "Reels",
     },
     {
       icon: <PlusSquare />,

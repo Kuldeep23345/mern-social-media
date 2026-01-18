@@ -7,6 +7,7 @@ import Home from "./pages/home/Home";
 import EditProfile from "./components/main/EditProfile";
 import ChatPage from "./components/main/ChatPage";
 import FollowersPage from "./components/main/FollowersPage";
+import Reels from "./components/main/Reels";
 
 const App = () => {
   return (
@@ -19,6 +20,7 @@ const App = () => {
           <Route path="/profile/:id/following" element={<FollowersPage />} />
           <Route path="/profile/edit" element={<EditProfile />} />
           <Route path="/chat" element={<ChatPage />} />
+          <Route path="/reels" element={<Reels />} />
         </Route>
         <Route path="signup" element={<Signup />} />
         <Route path="login" element={<Login />} />

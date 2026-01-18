@@ -10,6 +10,8 @@ import { AtSign, Heart, MessageCircle } from "lucide-react";
 import instance from "@/lib/axios.instance";
 import { toast } from "sonner";
 import { setAuthUser, setUserProfile } from "@/redux/authSlice";
+import CommentDialog from "./CommentDialog";
+import { setSlectedPost } from "@/redux/postSlice";
 
 const Profile = () => {
   const params = useParams();
@@ -18,13 +20,14 @@ const Profile = () => {
   const dispatch = useDispatch();
   useGetUserProfile(userId);
   const [activeTab, setActiveTab] = useState("posts");
+  const [savedTab, setSavedTab] = useState("all");
   const [isFollowing, setIsFollowing] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [open, setOpen] = useState(false);
 
   const { userProfile, user } = useSelector((store) => store.auth);
   const isLoggedInUserProfile = user?._id === userProfile?._id;
 
-  // Check if user is following this profile
   React.useEffect(() => {
     if (user && userProfile && !isLoggedInUserProfile) {
       const following =
@@ -46,10 +49,8 @@ const Profile = () => {
       if (res.data.success) {
         toast.success(res.data.message);
 
-        // Update following status
         setIsFollowing(!isFollowing);
 
-        // Update user's following list in Redux
         if (user.following) {
           const updatedFollowing = isFollowing
             ? user.following.filter(
@@ -60,7 +61,6 @@ const Profile = () => {
           dispatch(setAuthUser({ ...user, following: updatedFollowing }));
         }
 
-        // Update userProfile's followers count
         if (userProfile.followers) {
           const updatedFollowers = isFollowing
             ? userProfile.followers.filter(
@@ -85,15 +85,33 @@ const Profile = () => {
 
   const handleMessage = () => {
     navigate("/chat");
-    // You can also dispatch setSelectedUser here if needed
   };
 
   const handleTabchange = (tab) => {
     setActiveTab(tab);
   };
 
-  const displayedPost =
-    (activeTab === "posts" ? userProfile?.posts : userProfile?.bookmarks) || [];
+  const displayedPost = React.useMemo(() => {
+    if (activeTab === "posts") {
+      return (userProfile?.posts || []).filter((p) => p.postType === "post");
+    } else if (activeTab === "reels") {
+      return (userProfile?.posts || []).filter((p) => p.postType === "reel");
+    } else if (activeTab === "saved") {
+      const bookmarks = userProfile?.bookmarks || [];
+      if (savedTab === "posts")
+        return bookmarks.filter((p) => p.postType === "post");
+      if (savedTab === "reels")
+        return bookmarks.filter((p) => p.postType === "reel");
+      return bookmarks;
+    }
+    return [];
+  }, [userProfile, activeTab, savedTab]);
+
+  const handlePostClick = (post) => {
+    dispatch(setSlectedPost(post));
+    setOpen(true);
+  };
+
   return (
     <section className="max-w-4xl flex mx-auto pl-10 justify-center">
       <div className="flex flex-col gap-10 md:gap-20 p-4 md:p-8">
@@ -205,41 +223,97 @@ const Profile = () => {
           <div className="flex items-center justify-center gap-10 text-sm">
             <span
               onClick={() => handleTabchange("posts")}
-              className={`py-3 cursor-pointer${activeTab == "posts" ? "font-bold text-blue-500" : ""}`}
+              className={`py-3 cursor-pointer ${activeTab === "posts" ? "font-bold border-t border-black dark:border-white" : "text-gray-500"}`}
             >
-              POSTS{" "}
+              POSTS
             </span>
             <span
               onClick={() => handleTabchange("saved")}
-              className={`py-3 cursor-pointer${activeTab == "saved" ? "font-bold text-blue-500" : ""}`}
+              className={`py-3 cursor-pointer ${activeTab === "saved" ? "font-bold border-t border-black dark:border-white" : "text-gray-500"}`}
             >
-              SAVED{" "}
+              SAVED
             </span>
             <span
               onClick={() => handleTabchange("reels")}
-              className={`py-3 cursor-pointer${activeTab == "reels" ? "font-bold text-blue-500" : ""}`}
+              className={`py-3 cursor-pointer ${activeTab === "reels" ? "font-bold border-t border-black dark:border-white" : "text-gray-500"}`}
             >
-              REELS{" "}
+              REELS
             </span>
             <span
               onClick={() => handleTabchange("tabs")}
-              className={`py-3 cursor-pointer${activeTab == "tabs" ? "font-bold text-blue-500" : ""}`}
+              className={`py-3 cursor-pointer ${activeTab === "tabs" ? "font-bold border-t border-black dark:border-white" : "text-gray-500"}`}
             >
-              TAGS{" "}
+              TAGS
             </span>
           </div>
+
+          {activeTab === "saved" && (
+            <div className="flex items-center justify-center gap-6 mb-4 text-xs">
+              <button
+                onClick={() => setSavedTab("all")}
+                className={`pb-1 px-2 ${savedTab === "all" ? "border-b-2 border-black font-bold" : "text-gray-500"}`}
+              >
+                All
+              </button>
+              <button
+                onClick={() => setSavedTab("posts")}
+                className={`pb-1 px-2 ${savedTab === "posts" ? "border-b-2 border-black font-bold" : "text-gray-500"}`}
+              >
+                Posts
+              </button>
+              <button
+                onClick={() => setSavedTab("reels")}
+                className={`pb-1 px-2 ${savedTab === "reels" ? "border-b-2 border-black font-bold" : "text-gray-500"}`}
+              >
+                Reels
+              </button>
+            </div>
+          )}
+
           <div className="grid grid-cols-2 md:grid-cols-3 gap-1 md:gap-3 px-1 md:px-0">
             {displayedPost?.map((post) => (
               <div
                 key={post?._id}
                 className="relative group cursor-pointer overflow-hidden rounded-md shadow-sm"
+                onClick={() => handlePostClick(post)}
               >
-                <img
-                  src={post?.image}
-                  alt="postimage"
-                  className="rounded-md w-full aspect-square object-cover transform transition-transform duration-500 group-hover:scale-105"
-                />
-                {/* Overlay */}
+                {post?.postType === "reel" ? (
+                  <div className="relative w-full aspect-square bg-black">
+                    <video
+                      src={post?.video}
+                      className="w-full h-full object-cover"
+                      muted
+                      playsInline
+                    />
+                    <div className="absolute top-2 right-2">
+                      <svg
+                        className="w-5 h-5 text-white drop-shadow-md"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2"
+                          d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
+                        />
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2"
+                          d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                        />
+                      </svg>
+                    </div>
+                  </div>
+                ) : (
+                  <img
+                    src={post?.image}
+                    alt="postimage"
+                    className="rounded-md w-full aspect-square object-cover transform transition-transform duration-500 group-hover:scale-105"
+                  />
+                )}
                 <div className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                   <div className="flex items-center text-white space-x-6">
                     <Button className="flex items-center gap-2 bg-transparent hover:bg-transparent hover:text-gray-300 transition-colors shadow-none cursor-pointer">
@@ -257,6 +331,7 @@ const Profile = () => {
           </div>
         </div>
       </div>
+      <CommentDialog open={open} setOpen={setOpen} />
     </section>
   );
 };

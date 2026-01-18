@@ -1,27 +1,42 @@
-import { uploadOnCloudinary } from "../utils/cloudinary.js";
+import {
+  uploadOnCloudinary,
+  deleteFromCloudinary,
+} from "../utils/cloudinary.js";
 import { Post } from "../models/post.model.js";
 import { User } from "../models/user.model.js";
 import { Comment } from "../models/comment.model.js";
 import { getIO } from "../socket/socket.js";
-import sharp from "sharp";
 const addNewPost = async (req, res) => {
   try {
     const authorId = req.user._id;
     const { caption } = req.body;
-    const image = req.file || null;
+    const file = req.file;
 
-    if (!image) {
+    if (!file) {
       return res
         .status(400)
-        .json({ message: "Image is required", success: false });
+        .json({ message: "File is required", success: false });
     }
 
-    const cloudResponse = await uploadOnCloudinary(image.path);
-    const post = await Post.create({
+    const cloudResponse = await uploadOnCloudinary(file.path);
+    if (!cloudResponse) {
+      return res.status(500).json({ message: "Upload failed", success: false });
+    }
+
+    const isVideo = file.mimetype.startsWith("video");
+    const postData = {
       caption,
-      image: cloudResponse.secure_url,
       author: authorId,
-    });
+      postType: isVideo ? "reel" : "post",
+    };
+
+    if (isVideo) {
+      postData.video = cloudResponse.secure_url;
+    } else {
+      postData.image = cloudResponse.secure_url;
+    }
+
+    const post = await Post.create(postData);
 
     const user = await User.findById(authorId);
     if (user) {
@@ -33,11 +48,35 @@ const addNewPost = async (req, res) => {
 
     return res
       .status(201)
-      .json({ message: "New post added", success: true, post });
+      .json({ message: `New ${post.postType} added`, success: true, post });
   } catch (error) {
     console.log("Error in add new post ", error);
     return res.status(500).json({
       message: "Internal server error in add new post",
+      success: false,
+    });
+  }
+};
+
+const getReels = async (req, res) => {
+  try {
+    const reels = await Post.find({ postType: "reel" })
+      .sort({ createdAt: -1 })
+      .populate({ path: "author", select: "username name profilePicture" })
+      .populate({
+        path: "comments",
+        sort: { createdAt: -1 },
+        populate: {
+          path: "author",
+          select: "username name profilePicture",
+        },
+      });
+
+    return res.status(200).json({ reels, success: true });
+  } catch (error) {
+    console.log("Error in get reels ", error);
+    return res.status(500).json({
+      message: "Internal server error in get reels",
       success: false,
     });
   }
@@ -57,7 +96,6 @@ const getAllPost = async (req, res) => {
         },
       });
 
-    // Filter out posts with deleted authors
     const validPosts = posts.filter(
       (post) => post.author !== null && post.author !== undefined,
     );
@@ -84,7 +122,6 @@ const getUserPost = async (req, res) => {
         populate: { path: "author", select: "username name profilePicture" },
       });
 
-    // Filter out posts with deleted authors (shouldn't happen for user's own posts, but safety check)
     const validPosts = posts.filter(
       (post) => post.author !== null && post.author !== undefined,
     );
@@ -114,7 +151,6 @@ const likePost = async (req, res) => {
     await post.updateOne({ $addToSet: { likes: userId } });
     await post.save();
 
-    // Send notification if post author is not the one liking
     if (!wasAlreadyLiked && post.author._id.toString() !== userId.toString()) {
       try {
         const io = getIO();
@@ -137,8 +173,6 @@ const likePost = async (req, res) => {
         };
 
         io.to(post.author._id.toString()).emit("newNotification", payload);
-
-        // #endregion
       } catch (socketError) {
         console.log("Socket.IO error in likePost:", socketError);
       }
@@ -228,7 +262,6 @@ const addComment = async (req, res) => {
     post.comments.push(comment._id);
     await post.save();
 
-    // Send notification if post author is not the one commenting
     if (post.author._id.toString() !== userId.toString()) {
       try {
         const io = getIO();
@@ -254,9 +287,6 @@ const addComment = async (req, res) => {
     // Emit socket event for real-time update
     try {
       const io = getIO();
-      // We need to fetch the post again to get all populated comments if we want to sync perfectly
-      // Or just send the new comment and let frontend handle it.
-      // But syncing the whole array is more robust if others are also adding comments.
       const updatedPost = await Post.findById(postId).populate({
         path: "comments",
         sort: { createdAt: -1 },
@@ -292,7 +322,7 @@ const getCommentOfPost = async (req, res) => {
 
     const comments = await Comment.find({ post: postId }).populate({
       path: "author",
-      select: "username name profilePicture", // 👈 space-separated, not comma
+      select: "username name profilePicture",
     });
 
     if (!comments || comments.length === 0) {
@@ -327,7 +357,17 @@ const deletePost = async (req, res) => {
     if (post.author.toString() !== authorId.toString()) {
       return res.status(403).json({ message: "Unauthorized" });
     }
+
     await Post.findByIdAndDelete(postId);
+
+    if (post.image) {
+      const publicId = post.image.split("/").pop().split(".")[0];
+      await deleteFromCloudinary(publicId, "image");
+    } else if (post.video) {
+      const publicId = post.video.split("/").pop().split(".")[0];
+      await deleteFromCloudinary(publicId, "video");
+    }
+
     let user = await User.findById(authorId);
     user.posts = user.posts.filter((id) => id.toString() !== postId);
 
@@ -434,4 +474,5 @@ export {
   deletePost,
   bookmarkPost,
   favoritePost,
+  getReels,
 };

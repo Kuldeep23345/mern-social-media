@@ -12,7 +12,7 @@ app.use(
   cors({
     origin: frontendUrl,
     credentials: true,
-  })
+  }),
 );
 app.use(cookieParser());
 app.use(express.static("public"));
@@ -22,8 +22,10 @@ app.use(express.static("public"));
 import userRoutes from "./routes/user.route.js";
 import postRoutes from "./routes/post.route.js";
 import messageRoutes from "./routes/message.route.js";
+import storyRoutes from "./routes/story.route.js";
 
 app.use("/api/v1/user", userRoutes);
 app.use("/api/v1/post", postRoutes);
 app.use("/api/v1/message", messageRoutes);
+app.use("/api/v1/story", storyRoutes);
 export { app };

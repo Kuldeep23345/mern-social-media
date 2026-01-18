@@ -1,5 +1,8 @@
 import { User } from "../models/user.model.js";
-import { uploadOnCloudinary } from "../utils/cloudinary.js";
+import {
+  uploadOnCloudinary,
+  deleteFromCloudinary,
+} from "../utils/cloudinary.js";
 import { Post } from "../models/post.model.js";
 import { getIO } from "../socket/socket.js";
 const registerUser = async (req, res) => {
@@ -23,7 +26,7 @@ const registerUser = async (req, res) => {
 
     const newUser = await User.create({
       username,
-      name: username, // default name to username
+      name: username,
       email,
       password,
     });
@@ -112,7 +115,24 @@ const getProfile = async (req, res) => {
   try {
     const userId = req.params.id;
     const user = await User.findById(userId)
-      .populate({ path: "posts", createdAt: -1 })
+      .populate({
+        path: "posts",
+        options: { sort: { createdAt: -1 } },
+        populate: [
+          {
+            path: "author",
+            select: "username name profilePicture",
+          },
+          {
+            path: "comments",
+            sort: { createdAt: -1 },
+            populate: {
+              path: "author",
+              select: "username name profilePicture",
+            },
+          },
+        ],
+      })
       .populate("bookmarks")
       .populate("favorites");
     return res.status(200).json({ user, success: true });
@@ -155,7 +175,13 @@ const editProfile = async (req, res) => {
     if (bio) user.bio = bio;
     if (gender) user.gender = gender;
     if (name) user.name = name;
-    if (profilePhoto) user.profilePicture = profilePhotoLocalPath.secure_url;
+    if (profilePhoto) {
+      if (user.profilePicture) {
+        const publicId = user.profilePicture.split("/").pop().split(".")[0];
+        await deleteFromCloudinary(publicId);
+      }
+      user.profilePicture = profilePhotoLocalPath.secure_url;
+    }
 
     await user.save();
 
@@ -201,9 +227,10 @@ const getSuggestedUsers = async (req, res) => {
   try {
     const userId = req.user._id;
 
-    const suggestedUsers = await User.find({ _id: { $ne: userId } }).select(
-      "-password",
-    );
+    const suggestedUsers = await User.find({ _id: { $ne: userId } })
+      .sort({ createdAt: -1 })
+      .limit(5)
+      .select("-password");
 
     if (!suggestedUsers) {
       return res
@@ -239,8 +266,6 @@ const followOrUnfollow = async (req, res) => {
         .status(404)
         .json({ message: "User not found", success: false });
     }
-
-    //  now i am checking that we have to follow and unfollow
 
     const isFollowing = user.following.some(
       (id) => id.toString() === jiskoFollowKaronga.toString(),
@@ -280,11 +305,9 @@ const followOrUnfollow = async (req, res) => {
         ),
       ]);
 
-      // Fetch updated user data
       const updatedUser =
         await User.findById(followKarneWala).select("-password");
 
-      // Send notification
       try {
         const io = getIO();
         const follower = await User.findById(followKarneWala).select(

@@ -11,17 +11,31 @@ cloudinary.config({
 export const uploadOnCloudinary = async (localFilePath) => {
   try {
     if (!localFilePath) return null;
-    //upload file on cloudinary
 
     const response = await cloudinary.uploader.upload(localFilePath, {
       resource_type: "auto",
     });
-    // file has been upload successfully
-   
+
     fs.unlinkSync(localFilePath);
     return response;
   } catch (error) {
-    fs.unlinkSync(localFilePath); // remove the locally saved tem file
+    fs.unlinkSync(localFilePath);
+    return null;
+  }
+};
+
+export const deleteFromCloudinary = async (
+  publicId,
+  resourceType = "image",
+) => {
+  try {
+    if (!publicId) return null;
+    const result = await cloudinary.uploader.destroy(publicId, {
+      resource_type: resourceType,
+    });
+    return result;
+  } catch (error) {
+    console.log("Error deleting from cloudinary:", error);
     return null;
   }
 };
