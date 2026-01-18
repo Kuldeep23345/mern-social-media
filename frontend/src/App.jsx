@@ -8,12 +8,23 @@ import EditProfile from "./components/main/EditProfile";
 import ChatPage from "./components/main/ChatPage";
 import FollowersPage from "./components/main/FollowersPage";
 import Reels from "./components/main/Reels";
+import ProtectedRoute from "./components/ProtectedRoute";
 
 const App = () => {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<Layout />}>
+        <Route path="signup" element={<Signup />} />
+        <Route path="login" element={<Login />} />
+
+        <Route
+          path="/"
+          element={
+            <ProtectedRoute>
+              <Layout />
+            </ProtectedRoute>
+          }
+        >
           <Route path="/" element={<Home />} />
           <Route path="/profile/:id" element={<Profile />} />
           <Route path="/profile/:id/followers" element={<FollowersPage />} />
@@ -22,8 +33,6 @@ const App = () => {
           <Route path="/chat" element={<ChatPage />} />
           <Route path="/reels" element={<Reels />} />
         </Route>
-        <Route path="signup" element={<Signup />} />
-        <Route path="login" element={<Login />} />
       </Routes>
     </BrowserRouter>
   );
