@@ -25,9 +25,8 @@ export const SocketProvider = ({ children }) => {
   useEffect(() => {
     if (!user) return;
 
-    // Get Socket.IO URL from environment or use default
-    const SOCKET_URL =
-      import.meta.env.VITE_SOCKET_URL || "http://localhost:8000";
+    // Get Socket.IO URL from environment or use API URL
+    const SOCKET_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
     // Initialize Socket.IO connection
     const newSocket = io(SOCKET_URL, {
