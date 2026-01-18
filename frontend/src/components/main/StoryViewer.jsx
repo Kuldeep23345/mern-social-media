@@ -1,26 +1,71 @@
 import React, { useState, useEffect, useRef } from "react";
-import { X, ChevronLeft, ChevronRight, MoreHorizontal } from "lucide-react";
+import {
+  X,
+  ChevronLeft,
+  ChevronRight,
+  MoreHorizontal,
+  Trash2,
+} from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 import { Button } from "../ui/button";
+import { useDispatch, useSelector } from "react-redux";
+import { setStories } from "@/redux/postSlice";
+import instance from "@/lib/axios.instance";
+import { toast } from "sonner";
+import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 
 const StoryViewer = ({ userStories, onClose }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [progress, setProgress] = useState(0);
   const videoRef = useRef(null);
   const timerRef = useRef(null);
+  const dispatch = useDispatch();
+  const { user } = useSelector((store) => store.auth);
+
+  // If userStories or stories are empty (e.g., after delete), close
+  if (
+    !userStories ||
+    !userStories.stories ||
+    userStories.stories.length === 0
+  ) {
+    onClose();
+    return null;
+  }
 
   const currentStory = userStories.stories[currentIndex];
+  // Safety check if index is out of bounds
+  if (!currentStory) {
+    if (userStories.stories.length > 0) {
+      setCurrentIndex(0);
+      return null;
+    } else {
+      onClose();
+      return null;
+    }
+  }
+
   const isVideo = !!currentStory.video;
+  const isOwner = user?._id === currentStory.author?._id;
+
+  useEffect(() => {
+    // Disable body scroll
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      // Re-enable body scroll
+      document.body.style.overflow = "unset";
+    };
+  }, []);
 
   useEffect(() => {
     setProgress(0);
     startTimer();
     return () => stopTimer();
-  }, [currentIndex]);
+  }, [currentIndex, userStories]);
 
   const startTimer = () => {
     stopTimer();
-    const duration = isVideo ? 0 : 5000; // For images, 5 seconds. For videos, handled by onTimeUpdate.
+    const duration = isVideo ? 0 : 5000;
 
     if (!isVideo) {
       const interval = 50;
@@ -52,6 +97,28 @@ const StoryViewer = ({ userStories, onClose }) => {
   const handlePrev = () => {
     if (currentIndex > 0) {
       setCurrentIndex(currentIndex - 1);
+    }
+  };
+
+  const handleDelete = async () => {
+    try {
+      const res = await instance.delete(`/story/delete/${currentStory._id}`);
+      if (res.data.success) {
+        toast.success(res.data.message);
+
+        // Optimistic UI update approach or Refetch
+        // Refetching to be safe and sync with Redux
+        const updatedRes = await instance.get("/story/all");
+        if (updatedRes.data.success) {
+          dispatch(setStories(updatedRes.data.stories));
+          // Since the prop 'userStories' won't automatically update locally inside this unmounted/remounted component easily without parent state update,
+          // closing the viewer is the safest UX to prevent stale state.
+          onClose();
+        }
+      }
+    } catch (error) {
+      console.error("Error deleting story:", error);
+      toast.error(error.response?.data?.message || "Failed to delete story");
     }
   };
 
@@ -124,16 +191,47 @@ const StoryViewer = ({ userStories, onClose }) => {
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <MoreHorizontal className="w-5 h-5 cursor-pointer" />
-            <X
+            {isOwner && (
+              <Dialog
+                onOpenChange={(open) => {
+                  if (open) stopTimer();
+                  else startTimer();
+                }}
+              >
+                <DialogTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="w-8 h-8 rounded-full hover:bg-white/20 text-white"
+                  >
+                    <MoreHorizontal className="w-5 h-5" />
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="p-0 border-none bg-transparent shadow-none w-fit">
+                  <Button
+                    variant="destructive"
+                    onClick={handleDelete}
+                    className="flex items-center gap-2 font-bold ring-2 ring-white"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Delete Story
+                  </Button>
+                </DialogContent>
+              </Dialog>
+            )}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="w-8 h-8 rounded-full hover:bg-white/20 text-white"
               onClick={onClose}
-              className="w-6 h-6 cursor-pointer hover:scale-110 transition-transform"
-            />
+            >
+              <X className="w-6 h-6" />
+            </Button>
           </div>
         </div>
 
         {/* Story Content */}
-        <div className="flex-1 flex items-center justify-center bg-zinc-900">
+        <div className="flex-1 flex items-center justify-center bg-zinc-900 relative">
           {isVideo ? (
             <video
               ref={videoRef}
@@ -151,43 +249,36 @@ const StoryViewer = ({ userStories, onClose }) => {
               alt="Story"
             />
           )}
-        </div>
 
-        {/* Navigation Buttons */}
-        <div
-          className="absolute inset-y-0 left-0 w-1/4 z-10"
-          onClick={handlePrev}
-        />
-        <div
-          className="absolute inset-y-0 right-0 w-1/4 z-10"
-          onClick={handleNext}
-        />
-
-        <div className="hidden md:block absolute top-1/2 -left-16 -translate-y-1/2">
-          {currentIndex > 0 && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="text-white hover:bg-white/10"
-              onClick={handlePrev}
-            >
-              <ChevronLeft className="w-8 h-8" />
-            </Button>
-          )}
-        </div>
-        <div className="hidden md:block absolute top-1/2 -right-16 -translate-y-1/2">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="text-white hover:bg-white/10"
-            onClick={handleNext}
+          {/* Navigation Overlays */}
+          <div
+            className="absolute inset-y-0 left-0 w-[15%] z-10 flex items-center justify-start pl-2 cursor-pointer group"
+            onClick={(e) => {
+              e.stopPropagation();
+              handlePrev();
+            }}
           >
-            <ChevronRight className="w-8 h-8" />
-          </Button>
+            {currentIndex > 0 && (
+              <div className="p-2 bg-black/20 rounded-full backdrop-blur-sm text-white/70 group-hover:bg-black/40 group-hover:text-white transition-all">
+                <ChevronLeft className="w-6 h-6" />
+              </div>
+            )}
+          </div>
+          <div
+            className="absolute inset-y-0 right-0 w-[15%] z-10 flex items-center justify-end pr-2 cursor-pointer group"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleNext();
+            }}
+          >
+            <div className="p-2 bg-black/20 rounded-full backdrop-blur-sm text-white/70 group-hover:bg-black/40 group-hover:text-white transition-all">
+              <ChevronRight className="w-6 h-6" />
+            </div>
+          </div>
         </div>
 
         {/* Footer/Quick Reply */}
-        <div className="p-4 bg-gradient-to-t from-black/60 to-transparent pt-10">
+        <div className="p-4 bg-gradient-to-t from-black/60 to-transparent pt-10 z-20">
           <div className="flex gap-2">
             <input
               type="text"

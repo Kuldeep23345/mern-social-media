@@ -23,6 +23,9 @@ const ChatPage = () => {
   const [typing, setTyping] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [followingUsers, setFollowingUsers] = useState([]);
+  const [searchResults, setSearchResults] = useState([]);
+  const [searching, setSearching] = useState(false);
   const messagesEndRef = useRef(null);
   const typingTimeoutRef = useRef(null);
 
@@ -52,6 +55,50 @@ const ChatPage = () => {
     }
   }, [selectedUser, socket, user]);
 
+  useEffect(() => {
+    const fetchFollowingUsers = async () => {
+      try {
+        if (!user?._id) return;
+
+        // Fetch users who have messaged the current user
+        const messagedUsersRes = await instance.get(`/message/users`);
+        if (messagedUsersRes.data.success) {
+          setFollowingUsers(messagedUsersRes.data.users);
+        }
+      } catch (error) {
+        console.error("Error fetching users:", error);
+      }
+    };
+
+    fetchFollowingUsers();
+  }, [user]);
+
+  // Search for users globally
+  useEffect(() => {
+    const searchUsers = async () => {
+      if (!searchQuery.trim()) {
+        setSearchResults([]);
+        setSearching(false);
+        return;
+      }
+
+      setSearching(true);
+      try {
+        const res = await instance.get(`/user/search?query=${searchQuery}`);
+        if (res.data.success) {
+          setSearchResults(res.data.users);
+        }
+      } catch (error) {
+        console.error("Error searching users:", error);
+      } finally {
+        setSearching(false);
+      }
+    };
+
+    const debounceTimer = setTimeout(searchUsers, 300);
+    return () => clearTimeout(debounceTimer);
+  }, [searchQuery]);
+
   // Listen for new messages via Socket.IO
   useEffect(() => {
     if (!socket) return;
@@ -79,9 +126,42 @@ const ChatPage = () => {
           return [...prev, data];
         });
 
-        // #endregion
-
         scrollToBottom();
+      }
+
+      // Add sender to followingUsers if they're not already in the list
+      if (senderIdStr && senderIdStr !== userIdStr) {
+        setFollowingUsers((prev) => {
+          const exists = prev.find((u) => u._id?.toString() === senderIdStr);
+          if (!exists) {
+            // Fetch the sender's profile and add to list at the top
+            instance
+              .get(`/user/${senderIdStr}/profile`)
+              .then((res) => {
+                if (res.data.success && res.data.user) {
+                  setFollowingUsers((current) => {
+                    const stillNotExists = !current.some(
+                      (u) => u._id?.toString() === senderIdStr,
+                    );
+                    if (stillNotExists) {
+                      return [res.data.user, ...current];
+                    }
+                    return current;
+                  });
+                }
+              })
+              .catch((error) => {
+                console.error("Error fetching sender profile:", error);
+              });
+          } else {
+            // Move sender to the top of the list if they're already in the list
+            return [
+              exists,
+              ...prev.filter((u) => u._id?.toString() !== senderIdStr),
+            ];
+          }
+          return prev;
+        });
       }
     };
 
@@ -211,7 +291,7 @@ const ChatPage = () => {
   };
 
   return (
-    <div className="flex flex-col md:flex-row h-[calc(100vh-64px)] md:h-screen w-full overflow-hidden">
+    <div className="flex flex-col md:flex-row h-[85vh] md:h-screen w-full overflow-hidden">
       {/* Users List - Left Sidebar */}
       <section
         className={`${selectedUser ? "hidden md:flex" : "flex"} w-full md:w-80 lg:w-96 border-r border-gray-200 dark:border-gray-800 flex flex-col h-full bg-white dark:bg-gray-950`}
@@ -230,59 +310,136 @@ const ChatPage = () => {
           </div>
         </div>
         <div className="overflow-y-auto flex-1">
-          {suggestedUser
-            ?.filter((u) =>
-              (u.name || u.username)
-                ?.toLowerCase()
-                .includes(searchQuery.toLowerCase()),
-            )
-            ?.map((suggestedUserItem) => {
-              const isOnline = isUserOnline(suggestedUserItem._id);
-              const isSelected = selectedUser?._id === suggestedUserItem._id;
+          {searching ? (
+            <div className="flex justify-center items-center p-4">
+              <p className="text-gray-500">Searching...</p>
+            </div>
+          ) : searchQuery.trim() ? (
+            // Show search results
+            searchResults.length > 0 ? (
+              <>
+                <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase">
+                  Search Results
+                </div>
+                {searchResults.map((searchUser) => {
+                  const isOnline = isUserOnline(searchUser._id);
+                  const isSelected = selectedUser?._id === searchUser._id;
 
-              return (
-                <div
-                  onClick={() => {
-                    dispatch(setSelectedUser(suggestedUserItem));
-                  }}
-                  key={suggestedUserItem._id}
-                  className={`flex gap-3 items-center p-3 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer transition-colors ${
-                    isSelected ? "bg-gray-100 dark:bg-gray-800" : ""
-                  }`}
-                >
-                  <div className="relative">
-                    <Avatar>
-                      <AvatarImage src={suggestedUserItem?.profilePicture} />
-                      <AvatarFallback>
-                        {(
-                          suggestedUserItem?.name || suggestedUserItem?.username
-                        )
-                          ?.charAt(0)
-                          ?.toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                    {isOnline && (
-                      <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white dark:border-gray-900 rounded-full"></span>
-                    )}
-                  </div>
-                  <div className="flex flex-col flex-1 min-w-0">
-                    <span className="font-medium truncate">
-                      {suggestedUserItem?.name || suggestedUserItem?.username}
-                    </span>
-                    <span className="text-xs text-gray-500 truncate">
-                      @{suggestedUserItem?.username}
-                    </span>
-                    <span
-                      className={`text-xs font-bold ${
-                        isOnline ? "text-green-600" : "text-gray-500"
+                  return (
+                    <div
+                      onClick={() => {
+                        dispatch(setSelectedUser(searchUser));
+                        // Add to following users list if not already there
+                        setFollowingUsers((prev) => {
+                          const exists = prev.some(
+                            (u) => u._id === searchUser._id,
+                          );
+                          if (!exists) {
+                            return [searchUser, ...prev];
+                          }
+                          return prev;
+                        });
+                      }}
+                      key={searchUser._id}
+                      className={`flex gap-3 items-center p-3 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer transition-colors ${
+                        isSelected ? "bg-gray-100 dark:bg-gray-800" : ""
                       }`}
                     >
-                      {isOnline ? "online" : "offline"}
-                    </span>
-                  </div>
+                      <div className="relative">
+                        <Avatar>
+                          <AvatarImage src={searchUser?.profilePicture} />
+                          <AvatarFallback>
+                            {(searchUser?.name || searchUser?.username)
+                              ?.charAt(0)
+                              ?.toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        {isOnline && (
+                          <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white dark:border-gray-900 rounded-full"></span>
+                        )}
+                      </div>
+                      <div className="flex flex-col flex-1 min-w-0">
+                        <span className="font-medium truncate">
+                          {searchUser?.name || searchUser?.username}
+                        </span>
+                        <span className="text-xs text-gray-500 truncate">
+                          @{searchUser?.username}
+                        </span>
+                        <span
+                          className={`text-xs font-bold ${
+                            isOnline ? "text-green-600" : "text-gray-500"
+                          }`}
+                        >
+                          {isOnline ? "online" : "offline"}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </>
+            ) : (
+              <div className="flex justify-center items-center p-4">
+                <p className="text-gray-500">No users found</p>
+              </div>
+            )
+          ) : (
+            // Show following users
+            <>
+              {followingUsers.length > 0 && (
+                <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase">
+                  Following
                 </div>
-              );
-            })}
+              )}
+              {followingUsers?.map((suggestedUserItem) => {
+                const isOnline = isUserOnline(suggestedUserItem._id);
+                const isSelected = selectedUser?._id === suggestedUserItem._id;
+
+                return (
+                  <div
+                    onClick={() => {
+                      dispatch(setSelectedUser(suggestedUserItem));
+                    }}
+                    key={suggestedUserItem._id}
+                    className={`flex gap-3 items-center p-3 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer transition-colors ${
+                      isSelected ? "bg-gray-100 dark:bg-gray-800" : ""
+                    }`}
+                  >
+                    <div className="relative">
+                      <Avatar>
+                        <AvatarImage src={suggestedUserItem?.profilePicture} />
+                        <AvatarFallback>
+                          {(
+                            suggestedUserItem?.name ||
+                            suggestedUserItem?.username
+                          )
+                            ?.charAt(0)
+                            ?.toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      {isOnline && (
+                        <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white dark:border-gray-900 rounded-full"></span>
+                      )}
+                    </div>
+                    <div className="flex flex-col flex-1 min-w-0">
+                      <span className="font-medium truncate">
+                        {suggestedUserItem?.name || suggestedUserItem?.username}
+                      </span>
+                      <span className="text-xs text-gray-500 truncate">
+                        @{suggestedUserItem?.username}
+                      </span>
+                      <span
+                        className={`text-xs font-bold ${
+                          isOnline ? "text-green-600" : "text-gray-500"
+                        }`}
+                      >
+                        {isOnline ? "online" : "offline"}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </>
+          )}
         </div>
       </section>
 
@@ -325,7 +482,10 @@ const ChatPage = () => {
           </div>
 
           {/* Messages Area */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50 dark:bg-gray-900">
+          <div
+            className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50 dark:bg-gray-900 overscroll-contain"
+            style={{ WebkitOverflowScrolling: "touch" }}
+          >
             {loading ? (
               <div className="flex justify-center items-center h-full">
                 <p className="text-gray-500">Loading messages...</p>
@@ -421,7 +581,7 @@ const ChatPage = () => {
           </div>
         </section>
       ) : (
-        <section className="flex-1 flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+        <section className="hidden md:flex flex-1 items-center justify-center bg-gray-50 dark:bg-gray-900">
           <div className="text-center">
             <p className="text-gray-500 text-lg">
               Select a user to start chatting

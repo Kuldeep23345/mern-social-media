@@ -108,4 +108,42 @@ const getMessage = async (req, res) => {
   }
 };
 
-export { sendMessage, getMessage };
+const getMessagedUsers = async (req, res) => {
+  try {
+    const receiverId = req.user._id;
+
+    // Get all conversations where the user is a participant
+    const conversations = await Conversation.find({
+      participants: receiverId,
+    }).populate({
+      path: "participants",
+      select: "username profilePicture name _id",
+    });
+
+    // Extract unique users who have messaged the current user
+    const userMap = new Map();
+    conversations.forEach((conversation) => {
+      conversation.participants.forEach((participant) => {
+        // Don't include the current user
+        if (participant._id.toString() !== receiverId.toString()) {
+          userMap.set(participant._id.toString(), participant);
+        }
+      });
+    });
+
+    const messagesUsers = Array.from(userMap.values());
+
+    return res.status(200).json({
+      success: true,
+      users: messagesUsers,
+    });
+  } catch (error) {
+    console.log("Error in get messaged users", error);
+    return res.status(500).json({
+      message: "Internal server error in get messaged users",
+      success: false,
+    });
+  }
+};
+
+export { sendMessage, getMessage, getMessagedUsers };

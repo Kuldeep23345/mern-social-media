@@ -17,9 +17,11 @@ export const isAuth = async (req, res, next) => {
       res.clearCookie("token", {
         httpOnly: true,
         secure: true,
-        sameSite: "strict",
+        sameSite: "none",
       });
-      return res.status(401).json({ message: "User not found", success: false });
+      return res
+        .status(401)
+        .json({ message: "User not found", success: false });
     }
 
     req.user = { _id: user._id };
