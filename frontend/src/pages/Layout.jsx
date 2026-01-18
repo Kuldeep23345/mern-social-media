@@ -12,9 +12,7 @@ const Layout = () => {
       <main className="flex-1 w-full pb-16 md:pb-0 md:ml-[240px]">
         <Outlet />
       </main>
-      <div className="md:hidden fixed bottom-0 left-0 right-0 z-50">
-        <BottomBar />
-      </div>
+      <BottomBar />
     </div>
   );
 };

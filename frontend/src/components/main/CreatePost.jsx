@@ -48,12 +48,12 @@ const CreatePost = ({ open, setOpen }) => {
     formData.append("caption", caption);
     if (file) formData.append("image", file);
     try {
+      setLoading(true);
       const res = await instance.post("/post/addpost", formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
       if (res.data.success) {
         dispatch(setPosts([res.data.post, ...posts]));
-        setLoading(true);
         toast.success(res?.data?.message);
         setCaption("");
         setImagePreview("");
@@ -110,7 +110,7 @@ const CreatePost = ({ open, setOpen }) => {
             "w-fit mx-auto bg-[#0095F6] hover:bg-[#006eb7] cursor-pointer"
           }
         >
-          Select from computer
+          Select from device
         </Button>
         {imagePreview &&
           (loading ? (

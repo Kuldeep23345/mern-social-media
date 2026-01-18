@@ -84,7 +84,7 @@ const SearchUser = ({ isOpen, onClose, isMobileFullScreen = false }) => {
       ref={dropdownRef}
       className={
         isMobileFullScreen
-          ? "fixed inset-0 w-full h-full bg-white/95 dark:bg-gray-950/95 backdrop-blur-xl flex flex-col z-[100]"
+          ? "fixed top-0 left-0 right-0 bottom-16 bg-white/95 dark:bg-gray-950/95 backdrop-blur-xl flex flex-col z-40"
           : "w-full max-w-sm md:w-[420px] bg-white/90 dark:bg-gray-900/90 backdrop-blur-2xl rounded-[32px] shadow-[0_32px_64px_-12px_rgba(0,0,0,0.2)] border border-white/20 dark:border-gray-800/50 z-[60] max-h-[85vh] md:max-h-[640px] overflow-hidden flex flex-col ring-1 ring-black/5 dark:ring-white/5"
       }
     >
