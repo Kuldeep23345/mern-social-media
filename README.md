@@ -13,6 +13,7 @@ A full-stack social media application built with the MERN stack, featuring real-
   <img src="./assest-for-readme/desktop/desktop3.png" alt="Desktop Chat" width="45%">
   <img src="./assest-for-readme/desktop/desktop4.png" alt="Desktop Reels" width="45%">
   <img src="./assest-for-readme/desktop/desktop5.png" alt="Desktop Feed" width="45%">
+  <img src="./assest-for-readme/desktop/desktop6.png" alt="Desktop update" width="45%">
 </div>
 
 ### Mobile View
